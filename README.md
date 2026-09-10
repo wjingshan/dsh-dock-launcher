@@ -1,33 +1,41 @@
 # DeepSeek Harness 开关（常驻状态型程序坞应用）
 
-一个运行在 macOS（Apple Silicon / M4）上的**常驻**小程序：程序坞图标 = **拨动开关**，
-点击在「启动 / 停止 DeepSeek Harness」之间切换；菜单栏小图标实时显示任务状态，
-当任务**需要确认**或**完成**时做不同的动态效果提示。
+> 仓库：https://github.com/wjingshan/dsh-dock-launcher
+
+一个运行在 macOS（Apple Silicon / M4）上的**常驻**小程序：程序坞图标 = **拨动开关**。
+**左键**点击 = 启动 / 回到 DeepSeek Harness（`dsh`）网页界面；**右键**点击 = 操作菜单（停止服务、动画开关等）。
+图标实时呈现服务与任务状态，并在任务**完成 / 需要确认**时做动态提醒。
+
+| 关闭 | 运行 · 空闲 | 任务进行中 | 任务完成 | 需要确认 |
+|:--:|:--:|:--:|:--:|:--:|
+| ![关闭](docs/icon-off.png) | ![运行](docs/icon-running.png) | ![进行中](docs/icon-busy.png) | ![完成](docs/icon-remind-complete.png) | ![需确认](docs/icon-remind-confirm.png) |
+| 红 · 滑块在左 | 绿 · 滑块在右 | 蓝绿横向流动 + 斜向扫光 | 绿光呼吸发光 | 橙光呼吸发光 |
 
 ## 成品
 
 ```
-DeepSeek Harness 开关.app   （当前版本 v0.4.2）
+DeepSeek Harness 开关.app   （当前版本 v0.10.2）
 ```
 
 ## 功能
 
-- **双向开关**：Dock 图标点击切换 启动 / 停止 `dsh web`；图标实时变脸：
-  - `ON`（绿色，滑块在右）= 服务运行中
-  - `OFF`（红色，滑块在左）= 服务已停止
-  - `蓝` = 任务进行中　`橙` = 需要确认　`绿`= 任务完成（短暂）
-- **停止二次确认**：服务运行中点击 Dock 图标或菜单「停止服务」会先弹出确认框（停止 / 取消），防止误关闭；确认后图标立即拨向红色关闭态。
-- **常驻**：无窗口、挂在 Dock + 菜单栏；菜单栏小图标用颜色表示当前状态。
-- **动态效果提示**（当任务需要确认 / 完成时）：
-  - **需要确认** → 橙色图标 + Dock 持续弹跳（`critical`）+ 系统通知 + 徽标 `!` + 提示音 `Purr`
-  - **任务完成**（真正的 goal 结束）→ 一次弹跳（`informational`）+ 系统通知 + 徽标 `✓` + 成功音 `Glass`
-  - 启停音效：服务就绪 `Pop`、服务停止 `Funk`
-- **任务状态监测**：读取 `~/.dsh/sessions/*/session.jsonl.zstd` 最新活跃会话日志：
+- **程序坞左键 = 回到页面**：优先切回已打开的 `127.0.0.1:3080` 标签；页面被关了就恢复一个新标签；服务没运行则启动它。
+- **程序坞右键 = 操作菜单**：打开页面 / 知道了(停止提醒) / **停止服务…（二次确认）** / **动画开关** / 打开日志 / 退出。
+- **状态图标（4 态）**：
+  - `关闭`（红，滑块左）= 服务已停止
+  - `运行 · 空闲`（绿，滑块右）
+  - `任务进行中`（蓝绿横向流动 + 斜向扫光，60fps）
+  - `待关注提醒`（呼吸发光 + 呼吸缩放：完成=绿光、需确认=橙光）
+- **动态提醒**：任务完成 / 需要确认且你不在 dsh 页面时，图标先大跳 4 次 + 通知 + 音效，随后转为**安静的持续呼吸发光**；等你**回到 dsh 页面**、点图标或菜单「知道了」即停止（不会周期性乱跳）。
+- **动画总开关**：右键菜单可一键关闭/开启所有图标动画（关闭后为静态图标，弹跳与通知仍保留）；开销极低（仅动画态每帧重绘 128px 图标）。
+- **自动注入 API key**：GUI 启动的进程不读 `.zshrc`，本 App 会自动解析 `~/.zshenv` / `.zprofile` / `.zshrc` / `.bash_profile` / `.bashrc` / `.profile` 中的 `DEEPSEEK_API_KEY` 注入 dsh 子进程（只读、不落盘、不外传）。
+- **任务状态监测**：读取 `~/.dsh/sessions/*/session.jsonl.zstd` 活跃会话日志：
   - `approval/request`、`approval/asked` → **需要确认**
   - `turn/end`（普通对话回合结束）→ **任务完成**；存在活跃 goal 时回合结束不打扰，改为 `goal/change`（`operation == "complete"` / `goal.phase == "complete"`）→ **任务完成**
   - `turn/start` → **进行中**
 
 > 完成提示规则：会话没有活跃 goal 时，一轮对话结束（`turn/end`）即算完成；会话存在活跃 goal 时，只在整个 goal 真正结束（`goal/change · complete`）时提示。监测覆盖所有近期活跃会话，多会话并行不漏检。
+
 
 ## 使用
 
@@ -62,16 +70,24 @@ cd dsh-dock-launcher
 ```
 dsh-dock-launcher/
 ├── src/
-│   ├── main.swift          # 常驻应用：Dock/菜单栏、定时监测、动画+通知、点击切换启停
-│   ├── ServiceManager.swift# 启动/停止/端口探测
-│   ├── TaskMonitor.swift   # 定位会话日志、zstd 解压、事件识别
-│   ├── Icons.swift         # ON/OFF/运行/确认/完成 开关图标 + 菜单栏小图标
+│   ├── main.swift          # 常驻应用：Dock/菜单栏、监测、动画、通知、左键回页面、右键菜单
+│   ├── ServiceManager.swift# 启动/停止/端口探测、解析并注入 DEEPSEEK_API_KEY
+│   ├── TaskMonitor.swift   # 多会话游标、zstd 解压、事件识别
+│   ├── Frontmost.swift     # 前台浏览器/标签检测、聚焦或恢复 dsh 页面
+│   ├── Icons.swift         # 各状态开关图标 + 菜单栏小图标 + 动画绘制（流动/扫光/光晕）
 │   └── draw_icon.swift     # 用 CoreGraphics 绘制 App 图标(生成 1024px PNG)
+├── docs/                   # 各状态图标预览图（README 用）
 ├── Info.plist              # 应用元数据
 ├── build.sh                # 一键构建脚本（读取 VERSION/BUILD_NO 注入版本号）
 ├── VERSION                 # 语义版本号（第一行）
 ├── BUILD_NO                # 构建号（每次构建自增，已 gitignore）
 ├── CHANGELOG.md            # 版本记录
-├── DeepSeek Harness 开关.app   # 成品
+├── LICENSE                 # MIT
+├── DeepSeek Harness 开关.app   # 成品（已 gitignore）
 └── README.md               # 本说明
 ```
+
+## 许可
+
+[MIT](LICENSE) © 2026 wjingshan
+
