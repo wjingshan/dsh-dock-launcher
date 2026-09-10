@@ -21,6 +21,18 @@
 
 > 首次打开若提示「无法验证开发者」：**右键 App → 打开**（或 系统设置 → 隐私与安全性 → 仍要打开）。
 
+## 一键安装
+
+复制到「终端」执行，自动下载最新版并安装到 `/Applications`（含去除隔离标记、并自动启动）：
+
+```sh
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/wjingshan/dsh-dock-launcher/main/install.sh)"
+```
+
+也可以手动安装：从 **[Releases](https://github.com/wjingshan/dsh-dock-launcher/releases/latest)** 下载 `.dmg`（打开后拖入「应用程序」）或 `.zip`（解压后拖入）。
+
+> 首次打开若提示「无法验证开发者」：**右键 App → 打开**（或 系统设置 → 隐私与安全性 → 仍要打开）。
+
 ## 成品
 
 ```
