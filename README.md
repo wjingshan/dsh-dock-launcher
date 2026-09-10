@@ -9,7 +9,13 @@
 | 关闭 | 运行 · 空闲 | 任务进行中 | 任务完成 | 需要确认 |
 |:--:|:--:|:--:|:--:|:--:|
 | ![关闭](docs/icon-off.png) | ![运行](docs/icon-running.png) | ![进行中](docs/icon-busy.png) | ![完成](docs/icon-remind-complete.png) | ![需确认](docs/icon-remind-confirm.png) |
-| 红 · 滑块在左 | 绿 · 滑块在右 | 蓝绿横向流动 + 斜向扫光 | 绿光呼吸发光 | 橙光呼吸发光 |
+| 红 · 滑块在左 | 绿 · 滑块在右 | 蓝绿横向流动 + 激光扫描线 | 绿光呼吸发光 | 橙光呼吸发光 |
+
+图标使用**连续圆角(squircle)** 并随系统浅/深色外观自动切换底板配色（下图左：深色外观；右：浅色外观）：
+
+| 深色外观（默认） | 浅色外观 |
+|:--:|:--:|
+| ![深色](docs/icon-running.png) | ![浅色](docs/icon-light-appearance.png) |
 
 ## 成品
 

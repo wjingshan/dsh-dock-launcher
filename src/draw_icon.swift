@@ -27,6 +27,23 @@ let ctx = CGContext(
     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
 )!
 
+/// 连续圆角(squircle)：超椭圆 |x|^n+|y|^n=1 近似 macOS 26 图标形状
+func squirclePath(in rect: CGRect, n: CGFloat = 5.0) -> CGPath {
+    let path = CGMutablePath()
+    let cx = rect.midX, cy = rect.midY
+    let a = rect.width / 2, b = rect.height / 2
+    let steps = 240
+    for i in 0...steps {
+        let t = CGFloat(i) / CGFloat(steps) * 2 * .pi
+        let ct = cos(t), st = sin(t)
+        let x = cx + a * copysign(pow(abs(ct), 2 / n), ct)
+        let y = cy + b * copysign(pow(abs(st), 2 / n), st)
+        if i == 0 { path.move(to: CGPoint(x: x, y: y)) } else { path.addLine(to: CGPoint(x: x, y: y)) }
+    }
+    path.closeSubpath()
+    return path
+}
+
 func addRounded(_ rect: CGRect, _ radius: CGFloat) {
     let path = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
     ctx.addPath(path)
@@ -44,12 +61,12 @@ func fillVerticalGradient(_ rect: CGRect, radius: CGFloat, top: CGColor, bottom:
 // MARK: - 背景：全幅深色圆角底板（浅色扫光，左上亮右下暗）
 
 let bgRect = CGRect(x: 0, y: 0, width: size, height: size)
-let bgRadius: CGFloat = 236
+let bgRadius: CGFloat = 236   // 保留变量以兼容下方描边计算
 // 先铺满画布不透明深底（避免 Dock 上露出透明角/壁纸），再在其上画圆角渐变
 ctx.setFillColor(rgb(12, 14, 20))
 ctx.fill(bgRect)
 ctx.saveGState()
-addRounded(bgRect, bgRadius)
+ctx.addPath(squirclePath(in: bgRect))
 ctx.clip()
 do {
     let grad = CGGradient(colorsSpace: cs, colors: [rgb(66, 77, 101), rgb(32, 37, 50), rgb(16, 18, 24)] as CFArray, locations: [0, 0.55, 1])!
@@ -61,7 +78,7 @@ ctx.fill(CGRect(x: 0, y: size * 0.86, width: size, height: size * 0.14))
 ctx.restoreGState()
 // 底板边缘内描边
 ctx.saveGState()
-addRounded(bgRect.insetBy(dx: 3, dy: 3), bgRadius - 3)
+ctx.addPath(squirclePath(in: bgRect.insetBy(dx: 3, dy: 3)))
 ctx.setStrokeColor(rgb(255, 255, 255, 0.10))
 ctx.setLineWidth(5)
 ctx.strokePath()
@@ -69,8 +86,8 @@ ctx.restoreGState()
 
 // MARK: - 中央拨动开关（与 Dock 图标同几何：0.70 × 0.36 居中，滑块靠右）
 
-let capW = size * 0.70
-let capH = size * 0.36
+let capW = size * 0.66
+let capH = size * 0.34
 let pillRect = CGRect(x: (size - capW) / 2, y: (size - capH) / 2, width: capW, height: capH)
 let pillRadius = pillRect.height / 2
 
@@ -138,8 +155,8 @@ func drawCTLineText(_ text: String, font: CTFont, color: CGColor, centerX: CGFlo
     CTLineDraw(line, ctx)
 }
 
-let topFont = CTFontCreateWithName("HelveticaNeue-Semibold" as CFString, size * 0.135, nil)
-let botFont = CTFontCreateWithName("HelveticaNeue-Semibold" as CFString, size * 0.110, nil)
+let topFont = CTFontCreateWithName("HelveticaNeue-Semibold" as CFString, size * 0.125, nil)
+let botFont = CTFontCreateWithName("HelveticaNeue-Semibold" as CFString, size * 0.102, nil)
 let topDescent = CTFontGetDescent(topFont)
 let botAscent = CTFontGetAscent(botFont)
 

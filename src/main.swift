@@ -24,11 +24,13 @@ final class RemindView: NSView {
     var color: NSColor = NSColor(calibratedRed: 0.25, green: 0.90, blue: 0.55, alpha: 1)
     var glow: CGFloat = 1.0
     var capScale: CGFloat = 1.0
+    var phase: CGFloat = 0            // 驱动边缘白色流光的环绕位置
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         drawPulseIcon(rect: NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height),
-                      glowC: color, glow: glow, capScale: capScale)
+                      glowC: color, glow: glow, capScale: capScale,
+                      variant: currentIconVariant(), phase: phase)
     }
 }
 
@@ -37,7 +39,8 @@ final class BusyFlowView: NSView {
     var phase: CGFloat = 0
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        drawBusyFlowIcon(rect: NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height), phase: phase)
+        drawBusyFlowIcon(rect: NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height),
+                         phase: phase, variant: currentIconVariant())
     }
 }
 
@@ -81,6 +84,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.refreshUI()
             }
         }
+        // 系统浅色/深色外观变化时刷新 Dock 图标（外观变体）
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil, queue: .main) { [weak self] _ in
+                self?.refreshUI()
+        }
         startMonitor()
     }
 
@@ -115,7 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildStatusItem() {
         serviceRunning = ServiceManager.isRunning()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.image = menuIcon(.off)
+        statusItem.button?.image = menuIconTemplate(.off)
         statusItem.button?.toolTip = "DeepSeek Harness 开关"
         statusItem.menu = buildMenu()
     }
@@ -185,21 +194,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if running {
             let open = NSMenuItem(title: "打开 DeepSeek Harness 页面", action: #selector(openWebAction), keyEquivalent: "")
             open.target = self
+            open.image = sfSymbol("globe")
             m.addItem(open)
 
             if displayState == .reminding {
                 let ack = NSMenuItem(title: "知道了，停止提醒", action: #selector(ackAction), keyEquivalent: "")
                 ack.target = self
+                ack.image = sfSymbol("checkmark.circle")
                 m.addItem(ack)
             }
             m.addItem(NSMenuItem.separator())
 
             let stop = NSMenuItem(title: "停止服务…", action: #selector(toggleMenu), keyEquivalent: "")
             stop.target = self
+            stop.image = sfSymbol("stop.circle")
             m.addItem(stop)
         } else {
             let start = NSMenuItem(title: "启动服务", action: #selector(toggleMenu), keyEquivalent: "")
             start.target = self
+            start.image = sfSymbol("play.circle")
             m.addItem(start)
         }
 
@@ -207,13 +220,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let anim = NSMenuItem(title: animationsEnabled ? "关闭动画" : "打开动画",
                               action: #selector(toggleAnimations), keyEquivalent: "")
         anim.target = self
+        anim.image = sfSymbol("sparkles")
         m.addItem(anim)
 
         let log = NSMenuItem(title: "打开日志", action: #selector(openLogAction), keyEquivalent: "")
         log.target = self
+        log.image = sfSymbol("doc.text")
         m.addItem(log)
 
         let quit = NSMenuItem(title: "退出 DeepSeek Harness 开关", action: #selector(quitAction), keyEquivalent: "q")
+        quit.image = sfSymbol("power")
         quit.target = self
         m.addItem(quit)
         return m
@@ -225,9 +241,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         a.messageText = "停止 DeepSeek Harness 服务？"
         a.informativeText = "关闭后任务监测与提示将暂停。"
         a.alertStyle = .warning
-        a.addButton(withTitle: "停止服务")
+        // 遵循 HIG：破坏性操作不设默认按钮，回车＝取消（安全），并把停止标为破坏性（红色）
         a.addButton(withTitle: "取消")
-        if a.runModal() == .alertFirstButtonReturn { stopService() }
+        a.addButton(withTitle: "停止服务")
+        if a.buttons.count > 1 { a.buttons[1].hasDestructiveAction = true }
+        if a.runModal() == .alertSecondButtonReturn { stopService() }
     }
 
     private func startService(withBrowser open: Bool) {
@@ -332,6 +350,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let shimmer = 0.5 + 0.5 * sin(k * 6.8)
             v.glow = 0.30 + 0.45 * breathe + 0.25 * shimmer
             v.capScale = 1.0 + 0.04 * sin(k * 2.2)
+            v.phase = CGFloat(t)          // 边缘白色流光沿边缘环绕
             v.needsDisplay = true
             NSApp.dockTile.display()
         }
@@ -398,7 +417,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             remindView = nil
             busyView = nil
             NSApp.dockTile.contentView = nil
-            NSApp.applicationIconImage = dockIcon(.running)   // 立即回到正常静态图标
+            NSApp.applicationIconImage = dockIcon(.running, variant: currentIconVariant())   // 立即回到正常静态图标
             NSApp.dockTile.display()                          // 强制 Dock 刷新，杜绝残留动画帧
         }
     }
@@ -465,7 +484,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let s = computedState()
         if s != displayState { log("状态切换 → \(stateLabel(s))") }
         displayState = s
-        statusItem.button?.image = menuIcon(s.live, size: 17)
+        statusItem.button?.image = menuIconTemplate(s.live, size: 17)
         statusItem.button?.toolTip = "DeepSeek Harness 开关 · \(stateLabel(s))"
         statusItem.button?.menu = buildMenu()
         if s == .reminding {
@@ -473,23 +492,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 animBeat()                                // 立即渲染一帧提醒动画（后续由 30fps 定时器持续驱动）
             } else {
                 teardownRemindView()
-                NSApp.applicationIconImage = dockIcon(.confirm)   // 动画关闭：静态橙色提醒
+                NSApp.applicationIconImage = dockIcon(.confirm, variant: currentIconVariant())   // 动画关闭：静态橙色提醒
             }
         } else if s == .busy {
             if animationsEnabled {
                 animBeat()                                // 立即渲染一帧蓝绿流动（后续由 30fps 定时器持续驱动）
             } else {
                 teardownRemindView()
-                NSApp.applicationIconImage = dockIcon(.busy)       // 动画关闭：静态蓝色
+                NSApp.applicationIconImage = dockIcon(.busy, variant: currentIconVariant())       // 动画关闭：静态蓝色
             }
         } else {
             teardownRemindView()                     // 撤销动画视图，回到静态图标
-            NSApp.applicationIconImage = dockIcon(s.live)
+            NSApp.applicationIconImage = dockIcon(s.live, variant: currentIconVariant())
         }
     }
 
     private func stateLabel(_ s: DisplayState) -> String {
         switch s { case .off: return "已停止"; case .running: return "空闲"; case .busy: return "处理中"; case .reminding: return "待回网页查看" }
+    }
+
+    /// 取 SF Symbols 图标（供菜单项使用；取不到则返回 nil）
+    private func sfSymbol(_ name: String) -> NSImage? {
+        let img = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+        img?.size = NSSize(width: 16, height: 16)
+        return img
     }
 
     // MARK: 通知/声音/错误/日志
