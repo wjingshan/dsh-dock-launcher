@@ -76,7 +76,7 @@ dsh-dock-launcher/
 │   ├── Frontmost.swift     # 前台浏览器/标签检测、聚焦或恢复 dsh 页面
 │   ├── Icons.swift         # 各状态开关图标 + 菜单栏小图标 + 动画绘制（流动/扫光/光晕）
 │   └── draw_icon.swift     # 用 CoreGraphics 绘制 App 图标(生成 1024px PNG)
-├── docs/                   # 各状态图标预览图（README 用）
+├── docs/                   # 状态图标预览图 + 支付宝收款码（README 引用）
 ├── Info.plist              # 应用元数据
 ├── build.sh                # 一键构建脚本（读取 VERSION/BUILD_NO 注入版本号）
 ├── VERSION                 # 语义版本号（第一行）
@@ -90,4 +90,18 @@ dsh-dock-launcher/
 ## 许可
 
 [MIT](LICENSE) © 2026 wjingshan
+
+---
+
+## ☕ 赞助
+
+`DeepSeek Harness 开关` 是我自用的小工具，顺手开源出来。如果它帮到了你，欢迎请我喝杯咖啡 ☕
+
+<img src="docs/alipay-qr.jpg" alt="作者支付宝收款码（DeepSeek Harness 开关）" width="240" />
+
+<div align="center">
+
+**感谢你的支持！** 💙
+
+</div>
 
