@@ -2,6 +2,10 @@
 
 **简体中文** | [English](README.en.md)
 
+**中文**：常驻程序坞的 DeepSeek Harness 开关 —— 左键点击回到/启动 dsh 网页界面，右键打开菜单（停止服务、动画开关）；图标实时显示服务与任务状态，并在任务完成或需要确认时发光提醒。
+
+**English**: An always-on Dock toggle for DeepSeek Harness — left-click to open or start the dsh web UI, right-click for the menu (stop service, animation toggle). The icon mirrors live service/task state and glows when a task finishes or needs confirmation.
+
 > 仓库：https://github.com/wjingshan/dsh-dock-launcher
 >
 > **[⬇️ 下载最新版（Release）](https://github.com/wjingshan/dsh-dock-launcher/releases/latest)** — 解压后把 App 拖进「应用程序」即可。
