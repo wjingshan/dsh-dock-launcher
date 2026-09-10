@@ -336,7 +336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let t = Date().timeIntervalSinceReferenceDate
         if displayState == .busy {
             guard let v = ensureBusyView() else { return }
-            v.phase = CGFloat(t) * 2.0          // 连续时间驱动，平滑无卡顿
+            v.phase = CGFloat(t)               // 秒；drawBusyFlowIcon 内部按秒换算速度
             v.needsDisplay = true
             NSApp.dockTile.display()
         } else if displayState == .reminding {

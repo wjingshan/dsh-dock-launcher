@@ -336,29 +336,43 @@ func drawBusyFlowIcon(rect: NSRect, phase: CGFloat, variant: IconVariant = .dark
     drawDockBackground(rect, size: size, variant: variant)
     let capRect = dockCapsuleRect(center: center, size: size)
 
-    // 蓝/绿各两档，但都落在中明度：不发黑、不发白，且蓝绿整体亮度接近（保留轻微明暗层次）
-    let brightBlue  = NSColor(calibratedRed: 0.20, green: 0.55, blue: 0.95, alpha: 1)
-    let deepBlue    = NSColor(calibratedRed: 0.12, green: 0.40, blue: 0.80, alpha: 1)
-    let brightGreen = NSColor(calibratedRed: 0.20, green: 0.70, blue: 0.42, alpha: 1)
-    let deepGreen   = NSColor(calibratedRed: 0.12, green: 0.56, blue: 0.34, alpha: 1)
+    // 多色极光：蓝 → 青 → 绿 → 紫（都落在中明度、亮度接近，不发黑/不发白）
+    let auroraBlue   = NSColor(calibratedRed: 0.22, green: 0.52, blue: 1.00, alpha: 1)
+    let auroraCyan   = NSColor(calibratedRed: 0.16, green: 0.72, blue: 0.78, alpha: 1)
+    let auroraGreen  = NSColor(calibratedRed: 0.20, green: 0.68, blue: 0.42, alpha: 1)
+    let auroraViolet = NSColor(calibratedRed: 0.44, green: 0.50, blue: 0.96, alpha: 1)
 
     let capPath = NSBezierPath(roundedRect: capRect, xRadius: capRect.height/2, yRadius: capRect.height/2)
     NSGraphicsContext.saveGraphicsState()
     capPath.addClip()
-    // 横向循环流动：亮蓝→深蓝→亮绿→深绿（一个完整周期），平铺整数个周期并以同色收尾，
-    // 位移按真实图案周期取模 → 首尾无缝衔接，无断层/跳变。
-    let period = capRect.height * 1.6                     // 一个颜色周期长度
-    let seq = [brightBlue, deepBlue, brightGreen, deepGreen]
-    let repeats = 3                                       // 铺 3 个周期，保证整条胶囊都在渐变范围内
+    // 长色带极光：一个颜色循环 = 4×胶囊宽（每段色带 = 一个胶囊宽，色带很长、变化舒缓）；
+    // 铺 4 个循环 + 同色收尾，绘制区间按「始终完整覆盖胶囊」对齐，位移按真实周期取模 → 无缝。
+    let cycle = capRect.width * 4
+    let seq = [auroraBlue, auroraCyan, auroraGreen, auroraViolet]
     var colors: [NSColor] = []
-    for _ in 0..<repeats { colors.append(contentsOf: seq) }
-    colors.append(brightBlue)                             // 收尾同色，首尾相接
-    let span = period * CGFloat(repeats)
-    let shift = (phase * capRect.height * 0.5).truncatingRemainder(dividingBy: period)
+    for _ in 0..<4 { colors.append(contentsOf: seq) }
+    colors.append(auroraBlue)                    // 收尾同色，首尾相接（每段 = 胶囊宽）
+    let span = cycle * 4
+    let shift = (phase * capRect.width * 0.95).truncatingRemainder(dividingBy: cycle)
     let grad = NSGradient(colors: colors)!
-    grad.draw(from: NSPoint(x: capRect.midX - span / 2 + shift, y: 0),
-              to: NSPoint(x: capRect.midX + span / 2 + shift, y: 0),
+    // 区间左端始终比胶囊左边缘靠左 (span - 胶囊宽)，保证任何相位下胶囊都被完整覆盖
+    let fromX = capRect.minX - (span - capRect.width) + shift
+    grad.draw(from: NSPoint(x: fromX, y: 0),
+              to: NSPoint(x: fromX + span, y: 0),
               options: [])
+
+    // 柔和极光扫过：一道很宽很淡的白光缓慢掠过（非细亮线）
+    let sweepW = capRect.width * 0.42
+    let sweepPeriod = capRect.width + sweepW
+    let sweepShift = (phase * capRect.width * 0.45).truncatingRemainder(dividingBy: sweepPeriod)
+    let sweepRect = NSRect(x: capRect.minX - sweepW + sweepShift, y: capRect.minY,
+                           width: sweepW, height: capRect.height)
+    let sweepGrad = NSGradient(colors: [
+        NSColor(calibratedWhite: 1, alpha: 0.0),
+        NSColor(calibratedWhite: 1, alpha: 0.26),
+        NSColor(calibratedWhite: 1, alpha: 0.0),
+    ])!
+    sweepGrad.draw(in: sweepRect, angle: 0)
     NSGraphicsContext.restoreGraphicsState()
 
     // 胶囊内描边（受光轮廓）
