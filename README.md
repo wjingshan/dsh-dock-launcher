@@ -1,6 +1,8 @@
 # DeepSeek Harness 开关（常驻状态型程序坞应用）
 
 > 仓库：https://github.com/wjingshan/dsh-dock-launcher
+>
+> **[⬇️ 下载最新版（Release）](https://github.com/wjingshan/dsh-dock-launcher/releases/latest)** — 解压后把 App 拖进「应用程序」即可。
 
 一个运行在 macOS（Apple Silicon / M4）上的**常驻**小程序：程序坞图标 = **拨动开关**。
 **左键**点击 = 启动 / 回到 DeepSeek Harness（`dsh`）网页界面；**右键**点击 = 操作菜单（停止服务、动画开关等）。
@@ -9,7 +11,7 @@
 | 关闭 | 运行 · 空闲 | 任务进行中 | 任务完成 | 需要确认 |
 |:--:|:--:|:--:|:--:|:--:|
 | ![关闭](docs/icon-off.png) | ![运行](docs/icon-running.png) | ![进行中](docs/icon-busy.png) | ![完成](docs/icon-remind-complete.png) | ![需确认](docs/icon-remind-confirm.png) |
-| 红 · 滑块在左 | 绿 · 滑块在右 | 蓝绿横向流动 + 激光扫描线 | 绿光呼吸发光 | 橙光呼吸发光 |
+| 红 · 滑块在左 | 绿 · 滑块在右 | 多色极光流动 | 边缘内发光 + 白色流光 | 边缘内发光 + 白色流光 |
 
 图标使用**连续圆角(squircle)** 并随系统浅/深色外观自动切换底板配色（下图左：深色外观；右：浅色外观）：
 
@@ -17,10 +19,12 @@
 |:--:|:--:|
 | ![深色](docs/icon-running.png) | ![浅色](docs/icon-light-appearance.png) |
 
+> 首次打开若提示「无法验证开发者」：**右键 App → 打开**（或 系统设置 → 隐私与安全性 → 仍要打开）。
+
 ## 成品
 
 ```
-DeepSeek Harness 开关.app   （当前版本 v0.10.2）
+DeepSeek Harness 开关.app   （当前版本 v0.12.1）
 ```
 
 ## 功能
