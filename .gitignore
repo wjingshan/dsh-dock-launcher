@@ -1,0 +1,7 @@
+# 构建产物与生成的 .app
+build/
+*.app
+.DS_Store
+BUILD_NO
+preview/
+*.log
