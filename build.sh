@@ -42,6 +42,10 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Info.plist "$APP/Contents/Info.plist"
 cp "$BD/DSHLauncher" "$APP/Contents/MacOS/DSHLauncher"
 cp "$BD/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+# 本地化资源（en / zh-Hans / ja / ko）
+for lproj in resources/*.lproj; do
+  cp -R "$lproj" "$APP/Contents/Resources/"
+done
 
 # inject version
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VER" "$APP/Contents/Info.plist"

@@ -1,5 +1,7 @@
 # DeepSeek Harness 开关（常驻状态型程序坞应用）
 
+**简体中文** | [English](README.en.md)
+
 > 仓库：https://github.com/wjingshan/dsh-dock-launcher
 >
 > **[⬇️ 下载最新版（Release）](https://github.com/wjingshan/dsh-dock-launcher/releases/latest)** — 解压后把 App 拖进「应用程序」即可。
@@ -7,6 +9,8 @@
 一个运行在 macOS（Apple Silicon / M4）上的**常驻**小程序：程序坞图标 = **拨动开关**。
 **左键**点击 = 启动 / 回到 DeepSeek Harness（`dsh`）网页界面；**右键**点击 = 操作菜单（停止服务、动画开关等）。
 图标实时呈现服务与任务状态，并在任务**完成 / 需要确认**时做动态提醒。
+
+界面语言**跟随系统**，内置 简体中文 / English / 日本語 / 한국어（可在「系统设置 → 通用 → 语言与地区 → 应用程序」单独指定本 App 的语言）。
 
 | 关闭 | 运行 · 空闲 | 任务进行中 | 任务完成 | 需要确认 |
 |:--:|:--:|:--:|:--:|:--:|
@@ -18,8 +22,6 @@
 | 深色外观（默认） | 浅色外观 |
 |:--:|:--:|
 | ![深色](docs/icon-running.png) | ![浅色](docs/icon-light-appearance.png) |
-
-> 首次打开若提示「无法验证开发者」：**右键 App → 打开**（或 系统设置 → 隐私与安全性 → 仍要打开）。
 
 ## 一键安装
 
@@ -36,7 +38,7 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/wjingshan/dsh-dock-launche
 ## 成品
 
 ```
-DeepSeek Harness 开关.app   （当前版本 v0.12.1）
+DeepSeek Harness 开关.app   （当前版本 v0.13.0）
 ```
 
 ## 功能
@@ -46,9 +48,9 @@ DeepSeek Harness 开关.app   （当前版本 v0.12.1）
 - **状态图标（4 态）**：
   - `关闭`（红，滑块左）= 服务已停止
   - `运行 · 空闲`（绿，滑块右）
-  - `任务进行中`（蓝绿横向流动 + 斜向扫光，60fps）
-  - `待关注提醒`（呼吸发光 + 呼吸缩放：完成=绿光、需确认=橙光）
-- **动态提醒**：任务完成 / 需要确认且你不在 dsh 页面时，图标先大跳 4 次 + 通知 + 音效，随后转为**安静的持续呼吸发光**；等你**回到 dsh 页面**、点图标或菜单「知道了」即停止（不会周期性乱跳）。
+  - `任务进行中`：多色极光流动（蓝→青→绿→紫长色带缓慢流动 + 一道柔光掠过，60fps）
+  - `待关注提醒`：边缘向内呼吸发光 + 边缘内侧 2px 白色流光（沿边环绕）；完成=绿、需确认=橙
+- **动态提醒**：任务完成 / 需要确认且你不在 dsh 页面时，图标先弹跳 4 次 + 通知 + 音效，随后转为**安静的持续发光**；等你**回到 dsh 页面**、点图标或菜单「知道了」即停止（不会周期性乱跳）。
 - **动画总开关**：右键菜单可一键关闭/开启所有图标动画（关闭后为静态图标，弹跳与通知仍保留）；开销极低（仅动画态每帧重绘 128px 图标）。
 - **自动注入 API key**：GUI 启动的进程不读 `.zshrc`，本 App 会自动解析 `~/.zshenv` / `.zprofile` / `.zshrc` / `.bash_profile` / `.bashrc` / `.profile` 中的 `DEEPSEEK_API_KEY` 注入 dsh 子进程（只读、不落盘、不外传）。
 - **任务状态监测**：读取 `~/.dsh/sessions/*/session.jsonl.zstd` 活跃会话日志：
@@ -58,15 +60,15 @@ DeepSeek Harness 开关.app   （当前版本 v0.12.1）
 
 > 完成提示规则：会话没有活跃 goal 时，一轮对话结束（`turn/end`）即算完成；会话存在活跃 goal 时，只在整个 goal 真正结束（`goal/change · complete`）时提示。监测覆盖所有近期活跃会话，多会话并行不漏检。
 
-
 ## 使用
 
-1. 把 `DeepSeek Harness 开关.app` 拖进「应用程序」。
-2. 双击打开（或拖到程序坞固定）。**首次启动会自动把服务拨到 ON**（若尚未运行）。
-3. 之后点程序坞图标 = 点击开关：运行中→停止；停止→启动。
-4. 菜单栏小图标右键打开菜单：启动/停止服务、打开浏览器、打开日志、版本、退出。
+1. 把 `DeepSeek Harness 开关.app` 拖进「应用程序」，双击打开（或拖到程序坞固定）。
+2. App 启动时**如实显示服务状态**（未运行则显示红色「关闭」），**不会自动拉起 dsh**。
+3. **左键**点程序坞图标 = 启动服务并打开 dsh 页面（已运行则回到页面）。
+4. **右键**点程序坞图标 = 打开操作菜单（停止服务需二次确认）。
+5. 菜单栏小图标点击可打开同一套菜单。
 
-> 提示：首次使用允许系统通知权限，才能收到「需要确认 / 任务完成」通知。
+> 提示：首次使用请允许系统通知权限，才能收到「需要确认 / 任务完成」通知。
 
 ## 版本号规范
 
@@ -81,11 +83,12 @@ DeepSeek Harness 开关.app   （当前版本 v0.12.1）
 
 ```sh
 cd dsh-dock-launcher
-./build.sh          # 一键：绘图标→打包 icns→编译→组装→签名，并自动注入版本号
+./build.sh          # 一键：绘图标→打包 icns→编译→组装→打包多语言→签名，并注入版本号
 ```
 
 - 改图标颜色/造型：`src/Icons.swift`；改应用图标：`src/draw_icon.swift`。
 - 改启动/监测/提示逻辑：`src/ServiceManager.swift`、`src/TaskMonitor.swift`、`src/main.swift`。
+- 多语言文案：`resources/*.lproj/Localizable.strings`（en / zh-Hans / ja / ko）。
 
 ## 目录结构
 
@@ -96,17 +99,19 @@ dsh-dock-launcher/
 │   ├── ServiceManager.swift# 启动/停止/端口探测、解析并注入 DEEPSEEK_API_KEY
 │   ├── TaskMonitor.swift   # 多会话游标、zstd 解压、事件识别
 │   ├── Frontmost.swift     # 前台浏览器/标签检测、聚焦或恢复 dsh 页面
-│   ├── Icons.swift         # 各状态开关图标 + 菜单栏小图标 + 动画绘制（流动/扫光/光晕）
+│   ├── Icons.swift         # 各状态开关图标 + 菜单栏模板图标 + 动画绘制（极光/发光/流光）
 │   └── draw_icon.swift     # 用 CoreGraphics 绘制 App 图标(生成 1024px PNG)
+├── resources/              # 界面多语言（en / zh-Hans / ja / ko 的 Localizable.strings）
 ├── docs/                   # 状态图标预览图 + 支付宝收款码（README 引用）
-├── Info.plist              # 应用元数据
+├── install.sh              # 一键安装到 /Applications
+├── Info.plist              # 应用元数据（含 CFBundleLocalizations）
 ├── build.sh                # 一键构建脚本（读取 VERSION/BUILD_NO 注入版本号）
 ├── VERSION                 # 语义版本号（第一行）
 ├── BUILD_NO                # 构建号（每次构建自增，已 gitignore）
 ├── CHANGELOG.md            # 版本记录
 ├── LICENSE                 # MIT
-├── DeepSeek Harness 开关.app   # 成品（已 gitignore）
-└── README.md               # 本说明
+├── README.md / README.en.md    # 中文 / 英文说明
+└── DeepSeek Harness 开关.app   # 成品（已 gitignore）
 ```
 
 ## 许可
@@ -126,4 +131,3 @@ dsh-dock-launcher/
 **感谢你的支持！** 💙
 
 </div>
-

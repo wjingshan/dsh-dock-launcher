@@ -117,7 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         promptTimer?.invalidate()
         animTimer?.invalidate()
-        log("退出 DeepSeek Harness 开关")
+        log(L("menu.quit"))
     }
 
     // MARK: 菜单栏
@@ -125,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         serviceRunning = ServiceManager.isRunning()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.image = menuIconTemplate(.off)
-        statusItem.button?.toolTip = "DeepSeek Harness 开关"
+        statusItem.button?.toolTip = L("app.name")
         statusItem.menu = buildMenu()
     }
 
@@ -136,37 +136,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let running = serviceRunning
         let line: String = {
             switch displayState {
-            case .off: return "已停止"
-            case .running: return "运行中 · 空闲"
-            case .busy: return "运行中 · 处理中"
-            case .reminding: return "运行中 · 待你看网页"
+            case .off: return L("state.off")
+            case .running: return L("state.running")
+            case .busy: return L("state.busy")
+            case .reminding: return L("state.reminding")
             }
         }()
-        let s = NSMenuItem(title: "状态：\(line)", action: nil, keyEquivalent: "")
+        let s = NSMenuItem(title: String(format: L("menu.status"), line), action: nil, keyEquivalent: "")
         s.isEnabled = false
         m.addItem(s)
         m.addItem(.separator())
         if running {
-            let o = NSMenuItem(title: "打开 dsh 网页 (127.0.0.1:3080)", action: #selector(openWebAction), keyEquivalent: "")
+            let o = NSMenuItem(title: L("menu.openPageShort"), action: #selector(openWebAction), keyEquivalent: "")
             o.target = self; m.addItem(o)
             m.addItem(.separator())
             if displayState == .reminding {
-                let a = NSMenuItem(title: "知道了，停止提醒", action: #selector(ackAction), keyEquivalent: "")
+                let a = NSMenuItem(title: L("menu.ack"), action: #selector(ackAction), keyEquivalent: "")
                 a.target = self; m.addItem(a)
                 m.addItem(.separator())
             }
-            let r = NSMenuItem(title: "停止服务…", action: #selector(toggleMenu), keyEquivalent: "")
+            let r = NSMenuItem(title: L("menu.stop"), action: #selector(toggleMenu), keyEquivalent: "")
             r.target = self; m.addItem(r)
         } else {
-            let r = NSMenuItem(title: "启动服务", action: #selector(toggleMenu), keyEquivalent: "")
+            let r = NSMenuItem(title: L("menu.start"), action: #selector(toggleMenu), keyEquivalent: "")
             r.target = self; m.addItem(r)
         }
-        let lg = NSMenuItem(title: "打开日志", action: #selector(openLogAction), keyEquivalent: "")
+        let lg = NSMenuItem(title: L("menu.logs"), action: #selector(openLogAction), keyEquivalent: "")
         lg.target = self; m.addItem(lg)
         m.addItem(.separator())
-        let v = NSMenuItem(title: "版本 v\(appVersion)", action: nil, keyEquivalent: "")
+        let v = NSMenuItem(title: String(format: L("menu.version"), appVersion), action: nil, keyEquivalent: "")
         v.isEnabled = false; m.addItem(v)
-        let q = NSMenuItem(title: "退出 DeepSeek Harness 开关", action: #selector(quitAction), keyEquivalent: "q")
+        let q = NSMenuItem(title: L("menu.quit"), action: #selector(quitAction), keyEquivalent: "q")
         q.target = self; m.addItem(q)
         return m
     }
@@ -192,43 +192,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let running = serviceRunning
 
         if running {
-            let open = NSMenuItem(title: "打开 DeepSeek Harness 页面", action: #selector(openWebAction), keyEquivalent: "")
+            let open = NSMenuItem(title: L("menu.openPage"), action: #selector(openWebAction), keyEquivalent: "")
             open.target = self
             open.image = sfSymbol("globe")
             m.addItem(open)
 
             if displayState == .reminding {
-                let ack = NSMenuItem(title: "知道了，停止提醒", action: #selector(ackAction), keyEquivalent: "")
+                let ack = NSMenuItem(title: L("menu.ack"), action: #selector(ackAction), keyEquivalent: "")
                 ack.target = self
                 ack.image = sfSymbol("checkmark.circle")
                 m.addItem(ack)
             }
             m.addItem(NSMenuItem.separator())
 
-            let stop = NSMenuItem(title: "停止服务…", action: #selector(toggleMenu), keyEquivalent: "")
+            let stop = NSMenuItem(title: L("menu.stop"), action: #selector(toggleMenu), keyEquivalent: "")
             stop.target = self
             stop.image = sfSymbol("stop.circle")
             m.addItem(stop)
         } else {
-            let start = NSMenuItem(title: "启动服务", action: #selector(toggleMenu), keyEquivalent: "")
+            let start = NSMenuItem(title: L("menu.start"), action: #selector(toggleMenu), keyEquivalent: "")
             start.target = self
             start.image = sfSymbol("play.circle")
             m.addItem(start)
         }
 
         m.addItem(NSMenuItem.separator())
-        let anim = NSMenuItem(title: animationsEnabled ? "关闭动画" : "打开动画",
+        let anim = NSMenuItem(title: animationsEnabled ? L("menu.animOff") : L("menu.animOn"),
                               action: #selector(toggleAnimations), keyEquivalent: "")
         anim.target = self
         anim.image = sfSymbol("sparkles")
         m.addItem(anim)
 
-        let log = NSMenuItem(title: "打开日志", action: #selector(openLogAction), keyEquivalent: "")
+        let log = NSMenuItem(title: L("menu.logs"), action: #selector(openLogAction), keyEquivalent: "")
         log.target = self
         log.image = sfSymbol("doc.text")
         m.addItem(log)
 
-        let quit = NSMenuItem(title: "退出 DeepSeek Harness 开关", action: #selector(quitAction), keyEquivalent: "q")
+        let quit = NSMenuItem(title: L("menu.quit"), action: #selector(quitAction), keyEquivalent: "q")
         quit.image = sfSymbol("power")
         quit.target = self
         m.addItem(quit)
@@ -238,12 +238,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: 服务
     private func confirmStop() {
         let a = NSAlert()
-        a.messageText = "停止 DeepSeek Harness 服务？"
-        a.informativeText = "关闭后任务监测与提示将暂停。"
+        a.messageText = L("alert.stop.title")
+        a.informativeText = L("alert.stop.body")
         a.alertStyle = .warning
         // 遵循 HIG：破坏性操作不设默认按钮，回车＝取消（安全），并把停止标为破坏性（红色）
-        a.addButton(withTitle: "取消")
-        a.addButton(withTitle: "停止服务")
+        a.addButton(withTitle: L("button.cancel"))
+        a.addButton(withTitle: L("button.stop"))
         if a.buttons.count > 1 { a.buttons[1].hasDestructiveAction = true }
         if a.runModal() == .alertSecondButtonReturn { stopService() }
     }
@@ -256,7 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             self.log("后台启动 dsh web …")
             guard ServiceManager.start() else {
-                DispatchQueue.main.async { self.noteError("dsh 启动失败，日志 ~/Library/Logs/dsh-launcher.log") }
+                DispatchQueue.main.async { self.noteError(self.L("error.startFailed")) }
                 return
             }
             if ServiceManager.keyProvisioned { self.log("已注入 DEEPSEEK_API_KEY") } else { self.log("未找到 DEEPSEEK_API_KEY") }
@@ -269,7 +269,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     if open { self.openBrowser() }
                 }
             } else {
-                DispatchQueue.main.async { self.noteError("120s 后 127.0.0.1:3080 无响应，见 ~/Library/Logs/dsh-web.log") }
+                DispatchQueue.main.async { self.noteError(self.L("error.notResponding")) }
             }
         }
     }
@@ -364,8 +364,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if kind == .confirm { NSApp.dockTile.badgeLabel = "!" }
         else { NSApp.dockTile.badgeLabel = "✓" }
         switch kind {
-        case .confirm: postNotification(title: "DeepSeek Harness 需要确认", body: "有任务需要你到 dsh 网页确认。")
-        case .complete: postNotification(title: "DeepSeek Harness · 完成", body: "任务已完成，去 dsh 网页查看。")
+        case .confirm: postNotification(title: L("notify.confirm.title"), body: L("notify.confirm.body"))
+        case .complete: postNotification(title: L("notify.complete.title"), body: L("notify.complete.body"))
         }
         log("进入提醒：\(reason)（先大跳，后安静持续发光，直到你回 dsh 网页）")
         refreshUI()   // 立即切到提醒态并起动画
@@ -485,7 +485,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if s != displayState { log("状态切换 → \(stateLabel(s))") }
         displayState = s
         statusItem.button?.image = menuIconTemplate(s.live, size: 17)
-        statusItem.button?.toolTip = "DeepSeek Harness 开关 · \(stateLabel(s))"
+        statusItem.button?.toolTip = L("app.name") + " · " + stateLabel(s)
         statusItem.button?.menu = buildMenu()
         if s == .reminding {
             if animationsEnabled {
@@ -508,8 +508,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func stateLabel(_ s: DisplayState) -> String {
-        switch s { case .off: return "已停止"; case .running: return "空闲"; case .busy: return "处理中"; case .reminding: return "待回网页查看" }
+        switch s { case .off: return L("label.off"); case .running: return L("label.idle"); case .busy: return L("label.busy"); case .reminding: return L("label.reminding") }
     }
+
+    /// 本地化取词（跟随系统语言；见 resources/*.lproj/Localizable.strings）
+    private func L(_ key: String) -> String { NSLocalizedString(key, comment: "") }
 
     /// 取 SF Symbols 图标（供菜单项使用；取不到则返回 nil）
     private func sfSymbol(_ name: String) -> NSImage? {
@@ -529,7 +532,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func playSound(_ n: String) { NSSound(named: NSSound.Name(n))?.play() }
     private func noteError(_ m: String) {
         log("错误：\(m)")
-        let a = NSAlert(); a.messageText = "DeepSeek Harness 开关"; a.informativeText = m; a.alertStyle = .critical; a.addButton(withTitle: "好"); a.runModal()
+        let a = NSAlert(); a.messageText = L("app.name"); a.informativeText = m; a.alertStyle = .critical; a.addButton(withTitle: L("button.ok")); a.runModal()
     }
     private func log(_ m: String) {
         let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "yyyy-MM-dd HH:mm:ss"
