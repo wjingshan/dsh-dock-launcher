@@ -30,3 +30,17 @@
 "notify.complete.body" = "任务已完成，去 dsh 网页查看。";
 "error.startFailed" = "dsh 启动失败，日志 ~/Library/Logs/dsh-launcher.log";
 "error.notResponding" = "120s 后 127.0.0.1:3080 无响应，见 ~/Library/Logs/dsh-web.log";
+
+/* 环境自检 */
+"env.menu" = "环境自检…";
+"env.ok" = "环境正常";
+"env.warn.title" = "部分可选功能不可用";
+"env.critical.title" = "缺少必要依赖";
+"env.arch" = "芯片架构：%@";
+"env.os" = "macOS 版本：%@";
+"env.dsh.found" = "已找到 DeepSeek Harness：%@";
+"env.dsh.missing" = "未找到 DeepSeek Harness（dsh）。请先安装 dsh 并运行一次 `dsh web` 完成初始化，详见 README。";
+"env.zstd.found" = "zstd 可用：%@（任务状态监测已启用）";
+"env.zstd.missing" = "未找到 zstd —— 任务状态监测与提醒不可用；可执行 `brew install zstd` 后重启本 App。";
+"env.apikey.found" = "已找到 DEEPSEEK_API_KEY";
+"env.apikey.missing" = "未找到 DEEPSEEK_API_KEY —— dsh 发消息会报 \"no API key\"。请在 ~/.zshrc 中 export，或在 dsh 网页的 Models 页保存。";

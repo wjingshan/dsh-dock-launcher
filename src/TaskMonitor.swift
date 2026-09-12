@@ -53,10 +53,15 @@ enum TaskMonitor {
         return found.map { $0.1 }
     }
 
-    /// 用 zstd 解压会话日志，返回全部文本行
+    /// 定位可用的 zstd 可执行文件（供解压与“环境自检”共用）；找不到返回 nil
+    static func zstdExecutablePath() -> String? {
+        let candidates = ["/opt/homebrew/bin/zstd", "/usr/local/bin/zstd", "/usr/bin/zstd"]
+        return candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+    }
+
+    /// 用 zstd 解压会话日志，返回全部文本行（缺 zstd 时返回 nil，调用方应优雅降级）
     static func decompressLines(url: URL) -> [String]? {
-        let zstdCandidates = ["/opt/homebrew/bin/zstd", "/usr/local/bin/zstd", "/usr/bin/zstd"]
-        guard let zstd = zstdCandidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+        guard let zstd = zstdExecutablePath() else {
             return nil
         }
         let p = Process()

@@ -27,6 +27,23 @@
 |:--:|:--:|
 | ![深色](docs/icon-running.png) | ![浅色](docs/icon-light-appearance.png) |
 
+## ⚠️ 前置要求（别人装了却用不了，多半是这几条）
+
+本 App 是 **DeepSeek Harness（`dsh`）的配套开关**，不是独立软件，请先满足：
+
+1. **已安装 DeepSeek Harness**，`dsh` 命令可用，并至少运行过一次 `dsh web` 完成初始化（否则点图标会提示「未找到 dsh」）；
+2. **`DEEPSEEK_API_KEY`**：在 `~/.zshrc` 里 `export DEEPSEEK_API_KEY=...`，或在 dsh 网页的 Models 页保存（否则 dsh 发消息会报 `no API key`）；
+3. **（可选）`brew install zstd`**：任务状态监测与提醒需要它；缺失时 App 仍能启停服务，但图标不反映任务状态；
+4. **系统要求**：macOS 14+，Apple Silicon 或 Intel（通用二进制）；
+5. **首次打开**：本 App 未使用付费开发者证书签名/公证，若提示「无法验证开发者」或「已损坏」——
+   **右键 App → 打开**，或执行：
+   ```sh
+   xattr -dr com.apple.quarantine "/Applications/DeepSeek Harness 开关.app"
+   ```
+   推荐直接用下面的**一键安装**（脚本会自动去掉隔离标记）。
+
+App 菜单里也有 **「环境自检…」** 可以随时查看以上各项的实际状态与修复建议。
+
 ## 一键安装
 
 复制到「终端」执行，自动下载最新版并安装到 `/Applications`（含去除隔离标记、并自动启动）：

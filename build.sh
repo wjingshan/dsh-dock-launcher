@@ -32,10 +32,12 @@ iconutil -c icns "$TMPWORK/AppIcon.iconset" -o "$TMPWORK/AppIcon.icns"
 cp "$TMPWORK/AppIcon.icns" "$BD/AppIcon.icns"
 rm -rf "$TMPWORK"
 
-echo "== [3/4] compile launcher (v$VER build $BUILD_NUM) =="
-swiftc -O -module-cache-path "$BD/modcache" \
-  src/main.swift src/Icons.swift src/ServiceManager.swift src/TaskMonitor.swift src/Frontmost.swift \
-  -o "$BD/DSHLauncher"
+echo "== [3/4] compile launcher (v$VER build $BUILD_NUM, universal arm64+x86_64) =="
+SRC="src/main.swift src/Icons.swift src/ServiceManager.swift src/TaskMonitor.swift src/Frontmost.swift src/EnvCheck.swift"
+swiftc -O -module-cache-path "$BD/modcache" -target arm64-apple-macosx14.0 $SRC -o "$BD/DSHLauncher-arm64"
+swiftc -O -module-cache-path "$BD/modcache" -target x86_64-apple-macosx14.0 $SRC -o "$BD/DSHLauncher-x86_64"
+lipo -create -output "$BD/DSHLauncher" "$BD/DSHLauncher-arm64" "$BD/DSHLauncher-x86_64"
+echo "    arch: $(lipo -archs "$BD/DSHLauncher")"
 
 echo "== [4/4] assemble .app and sign =="
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"

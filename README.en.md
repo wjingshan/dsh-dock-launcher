@@ -27,6 +27,22 @@ The icon uses a **squircle (continuous-corner)** shape and swaps its plate color
 |:--:|:--:|
 | ![dark](docs/icon-running.png) | ![light](docs/icon-light-appearance.png) |
 
+## ⚠️ Requirements (this is usually why it "does not work" on another Mac)
+
+This app is a **companion toggle for DeepSeek Harness (`dsh`)** — not a standalone product:
+
+1. **DeepSeek Harness must be installed**, the `dsh` command must work, and you should have run `dsh web` at least once. Otherwise clicking the icon reports "dsh not found".
+2. **`DEEPSEEK_API_KEY`** must be available — `export DEEPSEEK_API_KEY=...` in `~/.zshrc`, or save it on the dsh Models page. Otherwise dsh reports `no API key`.
+3. **(Optional) `brew install zstd`** — required for task-state monitoring and alerts. Without it the app can still start/stop the service, but the icon will not reflect task state.
+4. **System**: macOS 14+, Apple Silicon or Intel (universal binary).
+5. **First launch**: this app is not signed with a paid Developer ID and is not notarized. If macOS says the developer cannot be verified (or "is damaged"), **right-click the app → Open**, or run:
+   ```sh
+   xattr -dr com.apple.quarantine "/Applications/DeepSeek Harness 开关.app"
+   ```
+   The one-line installer below does this automatically.
+
+The app menu also has an **"Environment Check…"** item showing the live status of all of the above with fix hints.
+
 ## One-line install
 
 Run this in Terminal — it downloads the latest release and installs it to `/Applications` (removes the quarantine flag and launches it):

@@ -67,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // UI
     private var statusItem: NSStatusItem!
+    private var envFindings: [EnvFinding] = []
 
     // MARK: 生命周期
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -84,6 +85,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.refreshUI()
             }
         }
+        // 启动自检：缺依赖时明确告知（关键项发通知，详情见菜单“环境自检…”）
+        DispatchQueue.global(qos: .utility).async {
+            let findings = EnvCheck.run()
+            DispatchQueue.main.async {
+                self.envFindings = findings
+                if EnvCheck.hasCritical(findings) {
+                    self.log("环境自检：缺少必要依赖（未找到 dsh）")
+                    self.postNotification(title: self.L("env.critical.title"), body: self.L("env.dsh.missing"))
+                } else if EnvCheck.hasWarning(findings) {
+                    self.log("环境自检：有警告项（zstd / API key 可能缺失）")
+                } else {
+                    self.log("环境自检：一切正常（arch=\(EnvCheck.cpuArch()) macOS=\(EnvCheck.osVersion())）")
+                }
+            }
+        }
+
         // 系统浅色/深色外观变化时刷新 Dock 图标（外观变体）
         DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
@@ -161,6 +178,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let r = NSMenuItem(title: L("menu.start"), action: #selector(toggleMenu), keyEquivalent: "")
             r.target = self; m.addItem(r)
         }
+        let envItem = NSMenuItem(title: L("env.menu"), action: #selector(envCheckAction), keyEquivalent: "")
+        envItem.target = self
+        envItem.image = sfSymbol("stethoscope")
+        m.addItem(envItem)
         let lg = NSMenuItem(title: L("menu.logs"), action: #selector(openLogAction), keyEquivalent: "")
         lg.target = self; m.addItem(lg)
         m.addItem(.separator())
@@ -184,6 +205,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/dsh-launcher.log"))
     }
     @objc private func quitAction() { NSApp.terminate(nil) }
+
+    /// 环境自检：显示架构/系统/dsh/zstd/API key 的检查结果
+    @objc private func envCheckAction() {
+        let findings = EnvCheck.run()
+        envFindings = findings
+        let title = EnvCheck.hasCritical(findings) ? L("env.critical.title")
+                  : (EnvCheck.hasWarning(findings) ? L("env.warn.title") : L("env.ok"))
+        let lines = findings.map { f -> String in
+            let mark = f.severity == .critical ? "✗" : (f.severity == .warning ? "⚠︎" : "✓")
+            let text = f.detailArg.isEmpty ? L(f.titleKey) : String(format: L(f.titleKey), f.detailArg)
+            return "\(mark) \(text)"
+        }
+        let a = NSAlert()
+        a.messageText = title
+        a.informativeText = lines.joined(separator: "\n\n")
+        a.alertStyle = EnvCheck.hasCritical(findings) ? .critical : .informational
+        a.addButton(withTitle: L("button.ok"))
+        a.runModal()
+    }
 
     // MARK: - Dock 右键菜单（左键=回到页面；右键=操作菜单：停止服务等）
 
@@ -223,6 +263,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         anim.image = sfSymbol("sparkles")
         m.addItem(anim)
 
+        let env = NSMenuItem(title: L("env.menu"), action: #selector(envCheckAction), keyEquivalent: "")
+        env.target = self
+        env.image = sfSymbol("stethoscope")
+        m.addItem(env)
         let log = NSMenuItem(title: L("menu.logs"), action: #selector(openLogAction), keyEquivalent: "")
         log.target = self
         log.image = sfSymbol("doc.text")
@@ -252,6 +296,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.global(qos: .userInitiated).async {
             if ServiceManager.isRunning() {
                 DispatchQueue.main.async { self.serviceRunning = true; self.refreshUI(); if open { self.openBrowser() } }
+                return
+            }
+            guard ServiceManager.findDsh() != nil else {
+                DispatchQueue.main.async { self.noteError(self.L("env.dsh.missing")) }
                 return
             }
             self.log("后台启动 dsh web …")
@@ -440,7 +488,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async { if self.displayState != .off { self.remindKind = nil; self.turnActive = false; self.cursors.removeAll(); self.refreshUI() } }
             return
         }
-        // 扫描事件
+        // 扫描事件（缺 zstd 时跳过：仅显示服务状态，不崩溃）
+        guard TaskMonitor.zstdExecutablePath() != nil else { return }
         var confirmSeen = false, completeSeen = false, busySeen = false
         let files = TaskMonitor.candidates()
         for url in files {

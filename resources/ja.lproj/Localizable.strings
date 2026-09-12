@@ -30,3 +30,17 @@
 "notify.complete.body" = "タスクが完了しました。dsh の Web UI で確認してください。";
 "error.startFailed" = "dsh の起動に失敗しました。~/Library/Logs/dsh-launcher.log を確認してください";
 "error.notResponding" = "120 秒経過しても 127.0.0.1:3080 が応答しません。~/Library/Logs/dsh-web.log を確認してください";
+
+/* 環境チェック */
+"env.menu" = "環境チェック…";
+"env.ok" = "環境は正常です";
+"env.warn.title" = "一部のオプション機能が利用できません";
+"env.critical.title" = "必須の依存関係がありません";
+"env.arch" = "アーキテクチャ：%@";
+"env.os" = "macOS バージョン：%@";
+"env.dsh.found" = "DeepSeek Harness を検出：%@";
+"env.dsh.missing" = "DeepSeek Harness（dsh）が見つかりません。先に dsh をインストールし、一度 `dsh web` を実行してください。詳細は README を参照。";
+"env.zstd.found" = "zstd が利用可能：%@（タスク監視が有効）";
+"env.zstd.missing" = "zstd が見つかりません — タスク監視と通知は無効です。`brew install zstd` を実行して本アプリを再起動してください。";
+"env.apikey.found" = "DEEPSEEK_API_KEY を検出";
+"env.apikey.missing" = "DEEPSEEK_API_KEY が見つかりません — dsh で「no API key」エラーになります。~/.zshrc に export するか、dsh の Models ページで保存してください。";
