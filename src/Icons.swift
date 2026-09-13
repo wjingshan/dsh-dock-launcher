@@ -281,7 +281,7 @@ private func drawEdgeStream(rect: NSRect, phase: CGFloat, strength: CGFloat) {
 }
 
 /// 在任意画布区域绘制「提醒发光图标」：边缘向内的呼吸发光 + 边缘内侧 2px 白色流光 + 胶囊 + 品牌字。
-func drawPulseIcon(rect: NSRect, glowC: NSColor, glow: CGFloat, capScale: CGFloat = 1,
+func drawPulseIcon(rect: NSRect, glowC: NSColor, glow: CGFloat,
                    variant: IconVariant = .dark, phase: CGFloat = 0) {
     let size = min(rect.width, rect.height)
     let center = CGPoint(x: rect.midX, y: rect.midY)
@@ -291,8 +291,19 @@ func drawPulseIcon(rect: NSRect, glowC: NSColor, glow: CGFloat, capScale: CGFloa
     drawEdgeStream(rect: rect, phase: phase, strength: strength)  // ② 边缘内侧 2px 白色流光
 
     // ③ 标准运行胶囊 + 品牌字（与静态完全一致）
-    let capRect = dockCapsuleRect(center: center, size: size, scale: capScale)
+    // 胶囊本身**不缩放**：这里曾经乘过一个 1±0.04 的呼吸系数，导致「任务完成」态的药丸
+    // 在 66–72px 之间来回变，与关闭 / 空闲 / 进行中的 68px 对不齐（实测偏差 ±4%）。
+    // 呼吸只保留在边缘发光上 —— 四个状态的胶囊必须严格同尺寸。
+    // 投影参数与 drawRunningIcon / dockIcon 完全一致（这两态原本缺投影）。
+    let capRect = dockCapsuleRect(center: center, size: size)
+    NSGraphicsContext.saveGraphicsState()
+    let sh = NSShadow()
+    sh.shadowColor = NSColor(calibratedWhite: 0, alpha: variant == .dark ? 0.35 : 0.22)
+    sh.shadowBlurRadius = size * 0.06
+    sh.shadowOffset = NSSize(width: 0, height: -size * 0.04)
+    sh.set()
     drawCapsule(rect: capRect, state: .running)
+    NSGraphicsContext.restoreGraphicsState()
     drawBrandLabelsIfAvailable(capRect: capRect, size: size, variant: variant)
 }
 
@@ -320,10 +331,10 @@ func dockIcon(_ state: LiveState, size: CGFloat = 128, variant: IconVariant = .d
 }
 
 /// 待关注提醒用的「发光」Dock 图标（图像载体；Dock 呼吸动画请用 contentView + drawPulseIcon）
-func dockIconPulse(glowColor glowC: NSColor, glow: CGFloat, capScale: CGFloat = 1, variant: IconVariant = .dark, phase: CGFloat = 0) -> NSImage {
+func dockIconPulse(glowColor glowC: NSColor, glow: CGFloat, variant: IconVariant = .dark, phase: CGFloat = 0) -> NSImage {
     let size: CGFloat = 128
     let img = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
-        drawPulseIcon(rect: rect, glowC: glowC, glow: glow, capScale: capScale, variant: variant, phase: phase)
+        drawPulseIcon(rect: rect, glowC: glowC, glow: glow, variant: variant, phase: phase)
         return true
     }
     return img
@@ -344,6 +355,23 @@ func drawBusyFlowIcon(rect: NSRect, phase: CGFloat, variant: IconVariant = .dark
     let auroraViolet = NSColor(calibratedRed: 0.24, green: 0.30, blue: 0.98, alpha: 1)
 
     let capPath = NSBezierPath(roundedRect: capRect, xRadius: capRect.height/2, yRadius: capRect.height/2)
+    // 胶囊投影：与静态两态（关闭 / 运行空闲）用同一组参数。这两态原本没有投影——
+    // 静态态是在 drawCapsule 外面套了一层 NSShadow，而这里和 drawPulseIcon 都漏掉了。
+    // 必须在 addClip() 之前做：极光渐变是在 capPath 的裁剪区内绘制的，裁剪会把投影一并裁掉；
+    // 所以先用带投影的实心胶囊画一遍轮廓，它随后被不透明渐变完全盖住，只剩向外扩散的投影。
+    NSGraphicsContext.saveGraphicsState()
+    let capShadow = NSShadow()
+    capShadow.shadowColor = NSColor(calibratedWhite: 0, alpha: variant == .dark ? 0.35 : 0.22)
+    capShadow.shadowBlurRadius = size * 0.06
+    capShadow.shadowOffset = NSSize(width: 0, height: -size * 0.04)
+    capShadow.set()
+    // 注意填充色必须**不透明**：NSShadow 是拿被绘制内容的 alpha 去生成投影的，
+    // 用 black 0.55 打底只能得到 55% 强度的投影（实测 +0.034，而静态态是 +0.114）。
+    // 这里用一个不透明的色带色，投影强度即与静态态一致；渐变色带随后把它完全盖住。
+    auroraBlue.setFill()
+    capPath.fill()
+    NSGraphicsContext.restoreGraphicsState()
+
     NSGraphicsContext.saveGraphicsState()
     capPath.addClip()
     // 多色极光色带：一个颜色循环 = 1.3×胶囊宽（每秒正好 1 个循环），铺 3 个循环 + 同色收尾。

@@ -27,17 +27,16 @@ private func dockAnimRect(_ bounds: NSRect) -> NSRect {
     bounds.insetBy(dx: bounds.width * 0.084, dy: bounds.height * 0.084)
 }
 
-/// Dock 提醒动画视图：作为 NSDockTile.contentView，胶囊按呼吸缩放 + 霓虹光晕
+/// Dock 提醒动画视图：作为 NSDockTile.contentView，胶囊 + 边缘呼吸霓虹光晕
 final class RemindView: NSView {
     var color: NSColor = NSColor(calibratedRed: 0.25, green: 0.90, blue: 0.55, alpha: 1)
     var glow: CGFloat = 1.0
-    var capScale: CGFloat = 1.0
     var phase: CGFloat = 0            // 驱动边缘白色流光的环绕位置
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         drawPulseIcon(rect: dockAnimRect(bounds),
-                      glowC: color, glow: glow, capScale: capScale,
+                      glowC: color, glow: glow,
                       variant: currentIconVariant(), phase: phase)
     }
 }
@@ -545,7 +544,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let v = ensureRemindView() else { return }
                 v.color = Self.remindColor(remindKind)
                 v.glow = 0.30 + 0.45 * breathe + 0.25 * shimmer
-                v.capScale = 1.0 + 0.04 * sin(k * 2.2)
+                // 胶囊尺寸不参与呼吸：这里曾经乘过一个 1±0.04 的系数，使「任务完成」态的药丸
+                // 在 66–72px 之间变化，与关闭 / 空闲 / 进行中的 68px 对不齐。呼吸只留在边缘发光上。
                 v.phase = CGFloat(t)          // 边缘白色流光沿边缘环绕
                 v.needsDisplay = true
             }
