@@ -14,6 +14,8 @@ struct MonitoredEvent {
     var toolName: String?
     // tool/call 与 tool/result 的 callId（用于判断某个交互式提问是否已被处理）
     var callId: String?
+    // 该提问是否为「多选」（arguments 里 questions[].multi_select == true）
+    var multiSelect = false
 }
 
 /// 单个会话文件的监测游标
@@ -29,6 +31,7 @@ struct SessionCursor {
 struct ScanResult {
     var confirm = false   // 需要确认（审批 / 权限）
     var question = false  // 停下来等你选择（交互式提问 / 计划审批）
+    var questionMulti = false  // 停下来等你选的是「多选」问题（末态用对勾动画）
     var resumed = false   // 你已作出选择、dsh 继续运算（审批已决 或 新一轮开始）
     var complete = false  // 任务完成
     var busy = false      // 任务进行中
@@ -100,6 +103,7 @@ enum TaskMonitor {
         var goalPhase: String?
         var toolName: String?
         var callId: String?
+        var multiSelect = false
         if let data = obj["data"] as? [String: Any] {
             if type == "goal/change" {
                 goalOp = data["operation"] as? String
@@ -107,6 +111,7 @@ enum TaskMonitor {
             } else if type == "tool/call" {
                 toolName = data["name"] as? String
                 callId = data["callId"] as? String
+                if let args = data["arguments"] as? String { multiSelect = isMultiSelectArguments(args) }
             } else if type == "tool/result" {
                 // 注意：提问的结果事件里 callId 嵌套在 data.message.source.callId
                 // （tool/call 才把它放在顶层），两种位置都要读
@@ -115,7 +120,7 @@ enum TaskMonitor {
             }
         }
         return MonitoredEvent(seq: seq, type: type, goalOp: goalOp, goalPhase: goalPhase,
-                              toolName: toolName, callId: callId)
+                              toolName: toolName, callId: callId, multiSelect: multiSelect)
     }
 
     // MARK: 信号判别
@@ -128,6 +133,15 @@ enum TaskMonitor {
     /// 你已经作出选择、dsh 继续运算：审批被决定（approval/decided）或新一轮开始（turn/start）
     static func isResumeEvent(_ type: String) -> Bool {
         type == "approval/decided"
+    }
+
+    /// 提问是否为多选：arguments 是 JSON 字符串，里面 questions[].multi_select / multiSelect 为 true
+    static func isMultiSelectArguments(_ args: String) -> Bool {
+        guard let obj = try? JSONSerialization.jsonObject(with: Data(args.utf8)) as? [String: Any],
+              let questions = obj["questions"] as? [[String: Any]] else { return false }
+        return questions.contains {
+            ($0["multi_select"] as? Bool) == true || ($0["multiSelect"] as? Bool) == true
+        }
     }
 
     /// 停下来等你选择：这些工具会阻塞等你回答/批准，日志里**没有**专用事件
@@ -211,6 +225,7 @@ enum TaskMonitor {
                 // 交互式提问 / 计划审批：会话在这里停下来等你选，日志里没有专用事件
                 if isQuestionTool(e.toolName) {
                     result.question = true
+                    if e.multiSelect { result.questionMulti = true }
                     cursor.pendingQuestionCallId = e.callId
                 }
             case "tool/result":

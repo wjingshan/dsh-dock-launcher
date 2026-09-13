@@ -459,6 +459,13 @@ enum AskMorph {
     static let spreadFrac: CGFloat = 0.125     // 品牌字上下分开距离 / 图标边长
     static let questionDelay: CGFloat = 0.25   // 问号在变形进度 25% 处才开始出现
     static let questionColor = NSColor(calibratedRed: 0.11, green: 0.47, blue: 1.00, alpha: 1)
+    static let checkInkWFrac: CGFloat = 0.300   // 对勾墨迹宽度 / 图标边长
+}
+
+/// 圆圈里的符号形态：单选/普通提问用问号，多选问题用对勾
+enum AskSymbol: Int, CaseIterable {
+    case question = 0   // 蓝色几何问号
+    case check          // 蓝色几何对勾（按进度"书写"出来）
 }
 
 /// 落定之后的循环手法（供选择）
@@ -576,12 +583,77 @@ func drawTechQuestion(_ q: TechQuestion, color: NSColor, dotScale: CGFloat = 1) 
     NSGraphicsContext.restoreGraphicsState()
 }
 
+// ── 几何绘制的对勾（等宽圆头描边，支持按进度"书写"） ──────────────────
+
+/// 已按目标尺寸与位置变换好的对勾几何
+struct TechCheck {
+    var partialOutline: CGPath     // 按书写进度截取后的描边外轮廓
+    var strokeWidth: CGFloat
+    var inkBounds: CGRect          // 完整对勾的墨迹范围（定尺寸用，不随进度漂移）
+}
+
+/// - Parameter reveal: 书写进度 0…1（从左往右写出）
+func makeTechCheck(center: CGPoint, inkWidth: CGFloat, reveal: CGFloat) -> TechCheck? {
+    let p0 = CGPoint(x: -0.66, y: 0.06)
+    let p1 = CGPoint(x: -0.18, y: -0.46)
+    let p2 = CGPoint(x: 0.70, y: 0.46)
+    let w: CGFloat = 0.30
+    let l1 = hypot(p1.x - p0.x, p1.y - p0.y)
+    let l2 = hypot(p2.x - p1.x, p2.y - p1.y)
+    let want = max(0.001, min(1, reveal)) * (l1 + l2)
+
+    let partial = NSBezierPath()
+    partial.move(to: p0)
+    if want <= l1 {
+        let f = l1 > 0 ? want / l1 : 0
+        partial.line(to: CGPoint(x: p0.x + (p1.x - p0.x) * f, y: p0.y + (p1.y - p0.y) * f))
+    } else {
+        partial.line(to: p1)
+        let f = l2 > 0 ? (want - l1) / l2 : 0
+        partial.line(to: CGPoint(x: p1.x + (p2.x - p1.x) * f, y: p1.y + (p2.y - p1.y) * f))
+    }
+    let partialOutline = partial.cgPath.copy(strokingWithWidth: w, lineCap: .round,
+                                            lineJoin: .round, miterLimit: 10)
+    let full = NSBezierPath()
+    full.move(to: p0); full.line(to: p1); full.line(to: p2)
+    let fullOutline = full.cgPath.copy(strokingWithWidth: w, lineCap: .round,
+                                      lineJoin: .round, miterLimit: 10)
+    let raw = fullOutline.boundingBox
+    let sc = inkWidth / raw.width
+    let t = CGAffineTransform(translationX: -raw.midX, y: -raw.midY)
+        .concatenating(CGAffineTransform(scaleX: sc, y: sc))
+        .concatenating(CGAffineTransform(translationX: center.x, y: center.y))
+    var tt = t
+    guard let moved = partialOutline.copy(using: &tt) else { return nil }
+    return TechCheck(partialOutline: moved, strokeWidth: w * sc,
+                     inkBounds: fullOutline.boundingBox.applying(t))
+}
+
+/// 画对勾：蓝色填充 + 与问号一致的淡内阴影
+func drawTechCheck(_ c: TechCheck, color: NSColor) {
+    let bez = NSBezierPath(cgPath: c.partialOutline)
+    NSGraphicsContext.saveGraphicsState()
+    bez.addClip()
+    color.setFill()
+    bez.fill()
+    let sh = NSShadow()
+    sh.shadowColor = NSColor(calibratedWhite: 0, alpha: 0.24)
+    sh.shadowBlurRadius = c.strokeWidth * 0.30
+    sh.shadowOffset = NSSize(width: 0, height: -c.strokeWidth * 0.16)
+    sh.set()
+    (color.blended(withFraction: 0.32, of: .black) ?? color).setStroke()
+    bez.lineWidth = c.strokeWidth * 0.30
+    bez.stroke()
+    NSGraphicsContext.restoreGraphicsState()
+}
+
 /// 按时间绘制一帧「需要你介入」动画
 /// - Parameters:
 ///   - time: 距动画开始的秒数。0…AskMorph.intro 为变形段，之后按 `loop` 循环。
 ///   - loop: 落定后的循环手法（`.still` 即变形结束后完全静止）
 func drawAskMorphIcon(rect: NSRect, time: CGFloat, loop: AskMorphLoop = .breathe,
-                      variant: IconVariant = .dark, reverse: Bool = false) {
+                      variant: IconVariant = .dark, reverse: Bool = false,
+                      symbol: AskSymbol = .question) {
     let size = min(rect.width, rect.height)
     let center = CGPoint(x: rect.midX, y: rect.midY)
     drawDockBackground(rect, size: size, variant: variant)
@@ -702,7 +774,6 @@ func drawAskMorphIcon(rect: NSRect, time: CGFloat, loop: AskMorphLoop = .breathe
     let qp = min(1, max(0, (ease - AskMorph.questionDelay) / (1 - AskMorph.questionDelay)))
     guard qp > 0.001, r > 4 else { return }
     let qEase = reverse ? qp : 1 - pow(1 - qp, 3)
-    let q = makeTechQuestion(center: center, inkHeight: size * AskMorph.questionInkFrac)
 
     // 亮度呼吸：只改透明度，不产生位移
     let qAlpha = min(1, qp * 1.8)                                     // 问号本体保持清晰，不靠变淡做呼吸
@@ -720,7 +791,18 @@ func drawAskMorphIcon(rect: NSRect, time: CGFloat, loop: AskMorphLoop = .breathe
     tf.translateX(by: -center.x, yBy: -center.y)
     tf.concat()
     NSGraphicsContext.current?.cgContext.setAlpha(qAlpha)
-    drawTechQuestion(q, color: qColor, dotScale: dotScale)
+    switch symbol {
+    case .question:
+        let q = makeTechQuestion(center: center, inkHeight: size * AskMorph.questionInkFrac)
+        drawTechQuestion(q, color: qColor, dotScale: dotScale)
+    case .check:
+        // 对勾按书写进度画出（反向时同样倒着收回）
+        if let check = makeTechCheck(center: center,
+                                     inkWidth: size * AskMorph.checkInkWFrac,
+                                     reveal: qEase) {
+            drawTechCheck(check, color: qColor)
+        }
+    }
     NSGraphicsContext.restoreGraphicsState()
 
     // ⑤ 光带扫过：裁在圆内，一道柔光斜掠（画在问号之上，很淡）

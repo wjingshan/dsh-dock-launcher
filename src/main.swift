@@ -49,9 +49,11 @@ final class AskMorphView: NSView {
     var time: CGFloat = 0
     var reverse = false
     var loop: AskMorphLoop = .brightness
+    var symbol: AskSymbol = .question        // 普通提问=问号；多选问题=对勾
     override func draw(_ dirtyRect: NSRect) {
         drawAskMorphIcon(rect: NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height),
-                         time: time, loop: loop, variant: currentIconVariant(), reverse: reverse)
+                         time: time, loop: loop, variant: currentIconVariant(), reverse: reverse,
+                         symbol: symbol)
     }
 }
 
@@ -80,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var morphPhase: MorphPhase = .intro
     private var morphPhaseStart: TimeInterval = 0
     private var morphView: AskMorphView?
+    private var morphSymbol: AskSymbol = .question
     private let morphOutroDuration: TimeInterval = 0.42
 
     // 提醒节奏（逻辑拍 0.5s）
@@ -490,6 +493,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if morphView != nil, let kind = remindKind, kind != .complete {
                 let v = morphView!
                 v.loop = .brightness
+                v.symbol = morphSymbol
                 switch morphPhase {
                 case .intro:
                     let el = t - morphPhaseStart
@@ -539,7 +543,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func beginRemind(kind: RemindKind, reason: String) {
+    private func beginRemind(kind: RemindKind, reason: String, symbol: AskSymbol = .question) {
         guard serviceRunning else { return }
         remindKind = kind
         bigBouncesLeft = 4            // 先来 4 次大跳
@@ -558,6 +562,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .complete: postNotification(title: L("notify.complete.title"), body: L("notify.complete.body"))
         }
         // 需要你介入的两态用「变形 → 亮度呼吸」动画；完成态仍用绿色发光
+        morphSymbol = symbol
         if kind != .complete, animationsEnabled {
             morphPhase = .intro
             morphPhaseStart = Date().timeIntervalSinceReferenceDate
@@ -688,7 +693,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // 扫描事件（缺 zstd 时跳过：仅显示服务状态，不崩溃）
         guard TaskMonitor.zstdExecutablePath() != nil else { return }
-        var confirmSeen = false, questionSeen = false, completeSeen = false, busySeen = false, resumedSeen = false
+        var confirmSeen = false, questionSeen = false, questionMultiSeen = false, completeSeen = false, busySeen = false, resumedSeen = false
         let files = TaskMonitor.candidates()
         for url in files {
             let k = url.path
@@ -699,6 +704,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             cursors[k] = c
             if r.confirm { confirmSeen = true }
             if r.question { questionSeen = true }
+            if r.questionMulti { questionMultiSeen = true }
             if r.resumed { resumedSeen = true }
             if r.complete { completeSeen = true }
             if r.busy { busySeen = true }
@@ -720,7 +726,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.dismissReminding(reason: "你已作出选择，dsh 继续运算")
             }
             if confirmSeen { self.beginRemind(kind: .confirm, reason: "需确认") }
-            else if questionSeen { self.beginRemind(kind: .question, reason: "等待你选择") }
+            else if questionSeen {
+                self.beginRemind(kind: .question,
+                                 reason: questionMultiSeen ? "等待你选择（多选）" : "等待你选择",
+                                 symbol: questionMultiSeen ? .check : .question)
+            }
             else if completeSeen && !userBack { self.beginRemind(kind: .complete, reason: "完成") }
             self.refreshUI()
         }
