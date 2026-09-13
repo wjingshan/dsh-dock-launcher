@@ -21,6 +21,8 @@ struct SessionCursor {
     var prevLineCount: Int? = nil   // 上次处理到的行数；nil = 尚未建立基线
     var goalActive = false          // 该会话当前是否存在未完成（活跃）的 goal
     var pendingQuestionCallId: String?  // 正在等待用户处理的交互式提问（其 tool/result 到达＝已处理）
+    var lastSize: Int?                  // 上次扫描时的文件大小（用于「未变化则跳过解压」）
+    var lastMTime: Date?                // 上次扫描时的修改时间
 }
 
 /// 一次扫描的结果
@@ -57,7 +59,7 @@ enum TaskMonitor {
             found.append((date, url))
         }
         found.sort { $0.0 > $1.0 }
-        return found.map { $0.1 }
+        return found.prefix(3).map { $0.1 }      // 只跟最近 3 个会话，控制单次扫描开销
     }
 
     /// 定位可用的 zstd 可执行文件（供解压与“环境自检”共用）；找不到返回 nil
@@ -155,6 +157,16 @@ enum TaskMonitor {
     /// 扫描一个会话文件：增量推进游标，返回本批新事件对应的信号。
     /// 首次扫描（无基线）只初始化游标与 goalActive，不产生任何信号（避免回放历史）。
     static func scan(url: URL, cursor: inout SessionCursor) -> ScanResult {
+        // 文件没变化就直接返回：避免白跑一次全量解压（14MB 日志约 0.26s），
+        // 这样轮询间隔可以压到 0.4s 而几乎不占 CPU
+        let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+        let size = (attrs?[.size] as? NSNumber)?.intValue ?? -1
+        let mtime = attrs?[.modificationDate] as? Date
+        if cursor.prevLineCount != nil, cursor.lastSize == size, cursor.lastMTime == mtime {
+            return ScanResult()
+        }
+        cursor.lastSize = size
+        cursor.lastMTime = mtime
         guard let lines = decompressLines(url: url) else { return ScanResult() }
         let n = lines.count
 

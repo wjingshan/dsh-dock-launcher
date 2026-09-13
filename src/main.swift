@@ -674,7 +674,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var monitorTimer: DispatchSourceTimer?
     private func startMonitor() {
         let t = DispatchSource.makeTimerSource(queue: monitorQueue)
-        t.schedule(deadline: .now() + 1, repeating: 1.0)
+        t.schedule(deadline: .now() + 0.4, repeating: 0.4)   // 0.4s：把提醒动画的触发延迟从约 2s 压下来（未变化时会跳过解压）
         t.setEventHandler { [weak self] in self?.tick() }
         t.resume()
         monitorTimer = t
