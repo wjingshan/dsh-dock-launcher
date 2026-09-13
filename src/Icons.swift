@@ -159,7 +159,8 @@ private func drawCTLabel(_ text: String, font: CTFont, color: CGColor,
 
 /// 在药丸开关的上/下空白处画品牌字（上 DeepSeek / 下 HARNESS）。
 /// 与 App 图标(.icns)共用同一布局参数，保证 Dock 与文件图标一致。坐标 y 向上。
-func drawIconBrandLabels(ctx: CGContext, capRect: CGRect, size: CGFloat, variant: IconVariant = .dark) {
+func drawIconBrandLabels(ctx: CGContext, capRect: CGRect, size: CGFloat, variant: IconVariant = .dark,
+                         labelSpread: CGFloat = 0) {
     // 深色底板用白字，浅色底板用深字，保证对比
     let primary: CGColor
     let secondary: CGColor
@@ -179,15 +180,15 @@ func drawIconBrandLabels(ctx: CGContext, capRect: CGRect, size: CGFloat, variant
     let topDescent = CTFontGetDescent(topFont)
     let botAscent = CTFontGetAscent(botFont)
 
-    // 上方 DeepSeek：文字底边距胶囊顶 gapTop
+    // 上方 DeepSeek：文字底边距胶囊顶 gapTop；labelSpread > 0 时向上让开
     let gapTop = size * 0.030
-    let topBaseline = capRect.maxY + gapTop + topDescent
+    let topBaseline = capRect.maxY + gapTop + topDescent + labelSpread
     drawCTLabel("DeepSeek", font: topFont, color: primary, ctx: ctx,
                 centerX: capRect.midX, baselineY: topBaseline)
 
-    // 下方 HARNESS：文字顶边距胶囊底 gapBot
+    // 下方 HARNESS：文字顶边距胶囊底 gapBot；labelSpread > 0 时向下让开
     let gapBot = size * 0.042
-    let botBaseline = capRect.minY - gapBot - botAscent
+    let botBaseline = capRect.minY - gapBot - botAscent - labelSpread
     drawCTLabel("HARNESS", font: botFont, color: secondary, ctx: ctx,
                 centerX: capRect.midX, baselineY: botBaseline)
 }
@@ -445,5 +446,297 @@ func dockIconDotPulse(dotColor: NSColor, pulse: CGFloat, size: CGFloat = 128,
     NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
         drawDotPulseIcon(rect: rect, dotColor: dotColor, pulse: pulse, variant: variant)
         return true
+    }
+}
+
+// MARK: 「需要你介入」变形动画（品牌字分开 → 白圆点放大成正圆 → 几何蓝色问号浮现 → 静止或轻微循环）
+
+/// 时间轴与几何参数（改这里即可微调节奏与比例）
+enum AskMorph {
+    static let intro: CGFloat = 0.5            // 开场变形时长（秒）
+    static let circleRFrac: CGFloat = 0.272    // 大白圆半径 / 图标边长
+    static let questionInkFrac: CGFloat = 0.420 // 问号墨迹高度 / 图标边长
+    static let spreadFrac: CGFloat = 0.125     // 品牌字上下分开距离 / 图标边长
+    static let questionDelay: CGFloat = 0.25   // 问号在变形进度 25% 处才开始出现
+    static let questionColor = NSColor(calibratedRed: 0.11, green: 0.47, blue: 1.00, alpha: 1)
+}
+
+/// 落定之后的循环手法（供选择）
+enum AskMorphLoop: Int, CaseIterable {
+    case still = 0        // ① 完全静止
+    case breathe          // ② 极轻呼吸（圆 + 问号整体 ±3.5% 缩放）
+    case ripple           // ③ 扩散环（细环向外扩散淡出，雷达 ping）
+    case brightness       // ④ 亮度呼吸（问号透明度起伏，无位移）
+    case sheen            // ⑤ 光带扫过（一道柔光斜掠圆面）
+    case dotPulse         // ⑥ 圆点脉冲（只有问号下方那个点轻微搏动）
+
+    var name: String {
+        switch self {
+        case .still: return "静止"
+        case .breathe: return "轻呼吸"
+        case .ripple: return "扩散环"
+        case .brightness: return "亮度呼吸"
+        case .sheen: return "光带扫过"
+        case .dotPulse: return "圆点脉冲"
+        }
+    }
+
+    /// 循环周期（秒）—— 都取 1.5 的整分数，便于并排对比且无缝循环
+    var period: CGFloat {
+        switch self {
+        case .still: return 1.5
+        case .breathe: return 1.5
+        case .ripple: return 0.75
+        case .brightness: return 0.75
+        case .sheen: return 1.5
+        case .dotPulse: return 0.75
+        }
+    }
+}
+
+// ── 几何绘制的问号（不用字体：等宽圆头描边，避免卡通观感） ──────────────
+
+/// 单位空间下的问号构造参数（H = 1 表示整枚问号的墨迹高度，比例对齐真实字体字形）
+/// 结构：碗形弧（195° → -60°，顺时针）→ 近乎垂直下延的竖杆 → 空隙 → 与笔画同宽的圆点
+private enum TechQ {
+    static let strokeW: CGFloat = 0.210        // 笔画宽度（比 Helvetica-Bold 更粗一档）
+    static let arcCenter = CGPoint(x: 0, y: 0.725)
+    static let arcRadius: CGFloat = 0.1975     // 碗形中径（外径 = 0.55）
+    static let arcStart: CGFloat = 195         // 度
+    static let arcEnd: CGFloat = -60
+    static let tailC1 = CGPoint(x: 0.060, y: 0.500)   // 承接弧末端的切线方向
+    static let tailC2 = CGPoint(x: 0.000, y: 0.420)
+    static let tailEnd = CGPoint(x: 0.000, y: 0.300)  // 竖杆收在中心线上
+    static let dotRadius: CGFloat = 0.085
+    static let dotCenter = CGPoint(x: 0, y: 0.085)
+}
+
+/// 已按目标尺寸与位置变换好的问号几何
+struct TechQuestion {
+    var hookOutline: CGPath      // 描边外轮廓（可直接填充）
+    var dot: CGPath              // 下方圆点（可直接填充）
+    var strokeWidth: CGFloat
+    var dotCenter: CGPoint
+    var inkBounds: CGRect
+}
+
+/// 生成一个墨迹高度为 `inkHeight`、**墨迹中心严格位于 `center`** 的问号
+func makeTechQuestion(center: CGPoint, inkHeight: CGFloat) -> TechQuestion {
+    let shape = NSBezierPath()
+    shape.appendArc(withCenter: TechQ.arcCenter, radius: TechQ.arcRadius,
+                    startAngle: TechQ.arcStart, endAngle: TechQ.arcEnd, clockwise: true)
+    shape.curve(to: TechQ.tailEnd, controlPoint1: TechQ.tailC1, controlPoint2: TechQ.tailC2)
+    let hookOutline = shape.cgPath.copy(strokingWithWidth: TechQ.strokeW,
+                                        lineCap: .round, lineJoin: .round, miterLimit: 10)
+    let dot = CGPath(ellipseIn: CGRect(x: TechQ.dotCenter.x - TechQ.dotRadius,
+                                       y: TechQ.dotCenter.y - TechQ.dotRadius,
+                                       width: TechQ.dotRadius * 2,
+                                       height: TechQ.dotRadius * 2), transform: nil)
+    let raw = hookOutline.boundingBox.union(dot.boundingBox)
+    let s = inkHeight / raw.height
+    let t = CGAffineTransform(translationX: -raw.midX, y: -raw.midY)
+        .concatenating(CGAffineTransform(scaleX: s, y: s))
+        .concatenating(CGAffineTransform(translationX: center.x, y: center.y))
+    var tt = t
+    let hook = hookOutline.copy(using: &tt) ?? hookOutline
+    let dotT = dot.copy(using: &tt) ?? dot
+    return TechQuestion(hookOutline: hook, dot: dotT, strokeWidth: TechQ.strokeW * s,
+                        dotCenter: TechQ.dotCenter.applying(t),
+                        inkBounds: hook.boundingBox.union(dotT.boundingBox))
+}
+
+/// 画几何问号：蓝色填充 + 淡内阴影（裁到轮廓内，再沿内缘压一圈模糊暗边）
+/// - Parameter dotScale: 圆点单独缩放（用于「圆点脉冲」），绕圆点自身中心缩放
+func drawTechQuestion(_ q: TechQuestion, color: NSColor, dotScale: CGFloat = 1) {
+    let hook = NSBezierPath(cgPath: q.hookOutline)
+    NSGraphicsContext.saveGraphicsState()
+    hook.addClip()
+    color.setFill()
+    hook.fill()
+    let sh = NSShadow()
+    sh.shadowColor = NSColor(calibratedWhite: 0, alpha: 0.24)
+    sh.shadowBlurRadius = q.strokeWidth * 0.30
+    sh.shadowOffset = NSSize(width: 0, height: -q.strokeWidth * 0.16)
+    sh.set()
+    (color.blended(withFraction: 0.32, of: .black) ?? color).setStroke()
+    hook.lineWidth = q.strokeWidth * 0.30
+    hook.stroke()
+    NSGraphicsContext.restoreGraphicsState()
+
+    NSGraphicsContext.saveGraphicsState()
+    if dotScale != 1 {
+        let tf = NSAffineTransform()
+        tf.translateX(by: q.dotCenter.x, yBy: q.dotCenter.y)
+        tf.scale(by: dotScale)
+        tf.translateX(by: -q.dotCenter.x, yBy: -q.dotCenter.y)
+        tf.concat()
+    }
+    color.setFill()
+    NSBezierPath(cgPath: q.dot).fill()
+    NSGraphicsContext.restoreGraphicsState()
+}
+
+/// 按时间绘制一帧「需要你介入」动画
+/// - Parameters:
+///   - time: 距动画开始的秒数。0…AskMorph.intro 为变形段，之后按 `loop` 循环。
+///   - loop: 落定后的循环手法（`.still` 即变形结束后完全静止）
+func drawAskMorphIcon(rect: NSRect, time: CGFloat, loop: AskMorphLoop = .breathe,
+                      variant: IconVariant = .dark, reverse: Bool = false) {
+    let size = min(rect.width, rect.height)
+    let center = CGPoint(x: rect.midX, y: rect.midY)
+    drawDockBackground(rect, size: size, variant: variant)
+
+    let p = min(1, max(0, time / AskMorph.intro))
+    // 正向：easeOutCubic（前快后收）；反向（收回到开关）：从 1 收到 0，起步快、落定稳
+    let ease = reverse ? pow(1 - p, 3) : 1 - pow(1 - p, 3)
+    let settled = ease > 0.995                     // 是否已处于"落定"外形（含反向刚起步时）
+    let capRect = dockCapsuleRect(center: center, size: size)
+
+    // ① 胶囊与白色圆点：随变形淡出（圆点由下面的白圆接手放大）
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current?.cgContext.setAlpha(1 - ease)
+    drawCapsule(rect: capRect, state: .running)
+    NSGraphicsContext.restoreGraphicsState()
+
+    // ② 品牌字上下分开：DeepSeek 向上、HARNESS 向下，靠近图标边缘
+    if let ctx = NSGraphicsContext.current?.cgContext {
+        drawIconBrandLabels(ctx: ctx, capRect: capRect, size: size, variant: variant,
+                            labelSpread: size * AskMorph.spreadFrac * ease)
+    }
+
+    // ③ 白色圆点 → 居中大正圆
+    let inset = capRect.height * 0.12
+    let knobSize = capRect.height - inset * 2
+    let knobCenter = CGPoint(x: capRect.maxX - inset - knobSize / 2,
+                             y: capRect.minY + inset + knobSize / 2)
+    let knobR = knobSize / 2
+    let bigR = size * AskMorph.circleRFrac
+    let r0 = knobR + (bigR - knobR) * ease
+    let c0 = CGPoint(x: knobCenter.x + (center.x - knobCenter.x) * ease,
+                     y: knobCenter.y + (center.y - knobCenter.y) * ease)
+
+    // 落定后的循环相位
+    let lt = max(0, time - AskMorph.intro)
+    let wave = 0.5 + 0.5 * sin(lt / loop.period * 2 * .pi)          // 0…1
+    let breathe = (loop == .breathe && settled) ? 1 + 0.035 * wave : 1
+
+    let r = r0 * breathe
+    let c = CGPoint(x: center.x + (c0.x - center.x) * breathe,
+                    y: center.y + (c0.y - center.y) * breathe)
+
+    // ③a 环境蓝光（圆后面一层很淡的光）
+    if ease > 0.05 {
+        let layers = 10
+        for i in 0..<layers {
+            let f = CGFloat(i) / CGFloat(layers - 1)
+            let rr = r * (1.02 + 0.30 * f)
+            AskMorph.questionColor.withAlphaComponent(0.055 * (1 - f) * ease).setFill()
+            NSBezierPath(ovalIn: NSRect(x: c.x - rr, y: c.y - rr, width: rr * 2, height: rr * 2)).fill()
+        }
+    }
+
+    // ③b 圆本体：径向渐变（中心纯白 → 边缘极淡冷灰），带投影
+    let circleRect = NSRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)
+    let circle = NSBezierPath(ovalIn: circleRect)
+    NSGraphicsContext.saveGraphicsState()
+    let circleShadow = NSShadow()
+    circleShadow.shadowColor = NSColor(calibratedWhite: 0, alpha: 0.38)
+    circleShadow.shadowBlurRadius = r * 0.16
+    circleShadow.shadowOffset = NSSize(width: 0, height: -r * 0.05)
+    circleShadow.set()
+    if let g = NSGradient(colors: [NSColor.white,
+                                   NSColor(calibratedRed: 0.906, green: 0.933, blue: 0.965, alpha: 1)]) {
+        g.draw(in: circle, relativeCenterPosition: .zero)
+    } else {
+        NSColor.white.setFill(); circle.fill()
+    }
+    NSGraphicsContext.restoreGraphicsState()
+
+    // ③c 发丝外环
+    if ease > 0.15 {
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current?.cgContext.setAlpha(min(1, (ease - 0.15) / 0.85))
+        let outer = NSBezierPath(ovalIn: circleRect.insetBy(dx: -1.5, dy: -1.5))
+        outer.lineWidth = 1.0
+        NSColor(calibratedWhite: 1, alpha: 0.18).setStroke()
+        outer.stroke()
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    // ③d 扩散环（落定后才有）
+    if loop == .ripple, settled {
+        let rings = 2
+        for i in 0..<rings {
+            var ph = (lt / loop.period) + CGFloat(i) / CGFloat(rings)
+            ph = ph.truncatingRemainder(dividingBy: 1)
+            // 从圆外一点起始、sin 包络淡入淡出，避免起始相位与圆边重合而被读成"双圈"
+            let rr = r * (1.06 + 0.34 * ph)
+            let ring = NSBezierPath(ovalIn: NSRect(x: c.x - rr, y: c.y - rr, width: rr * 2, height: rr * 2))
+            ring.lineWidth = 1.5
+            AskMorph.questionColor.withAlphaComponent(0.38 * sin(.pi * ph) * ease).setStroke()
+            ring.stroke()
+        }
+    }
+
+    // ③e 亮度呼吸：圆内一层蓝色柔光随呼吸明暗（问号本体不动、不变淡）
+    if loop == .brightness, settled, ease > 0.2 {
+        let glowR = r * 0.98
+        if let g = NSGradient(colors: [AskMorph.questionColor.withAlphaComponent(0.38 * wave * ease),
+                                       AskMorph.questionColor.withAlphaComponent(0.0)]) {
+            NSGraphicsContext.saveGraphicsState()
+            circle.addClip()
+            g.draw(in: NSBezierPath(ovalIn: NSRect(x: c.x - glowR, y: c.y - glowR,
+                                                   width: glowR * 2, height: glowR * 2)),
+                   relativeCenterPosition: .zero)
+            NSGraphicsContext.restoreGraphicsState()
+        }
+    }
+
+    // ④ 蓝色问号：从小到大浮现（反向时随之收回），墨迹中心严格在图标中心
+    //    显现程度一律跟随变形进度 ease（而不是原始 p），否则反向收尾时问号会残留到最后一帧
+    let qp = min(1, max(0, (ease - AskMorph.questionDelay) / (1 - AskMorph.questionDelay)))
+    guard qp > 0.001, r > 4 else { return }
+    let qEase = reverse ? qp : 1 - pow(1 - qp, 3)
+    let q = makeTechQuestion(center: center, inkHeight: size * AskMorph.questionInkFrac)
+
+    // 亮度呼吸：只改透明度，不产生位移
+    let qAlpha = min(1, qp * 1.8)                                     // 问号本体保持清晰，不靠变淡做呼吸
+    var qColor = AskMorph.questionColor
+    if loop == .brightness, settled {
+        // 只做很轻的深浅变化（12%），主要明暗交给圆内那层柔光
+        qColor = AskMorph.questionColor.blended(withFraction: 0.12 * (1 - wave), of: .black) ?? qColor
+    }
+    let dotScale: CGFloat = (loop == .dotPulse && settled) ? 1 + 0.30 * wave : 1
+
+    NSGraphicsContext.saveGraphicsState()
+    let tf = NSAffineTransform()
+    tf.translateX(by: center.x, yBy: center.y)
+    tf.scale(by: breathe * (0.35 + 0.65 * qEase))
+    tf.translateX(by: -center.x, yBy: -center.y)
+    tf.concat()
+    NSGraphicsContext.current?.cgContext.setAlpha(qAlpha)
+    drawTechQuestion(q, color: qColor, dotScale: dotScale)
+    NSGraphicsContext.restoreGraphicsState()
+
+    // ⑤ 光带扫过：裁在圆内，一道柔光斜掠（画在问号之上，很淡）
+    if loop == .sheen, settled {
+        let sweep = (lt / loop.period).truncatingRemainder(dividingBy: 1)
+        NSGraphicsContext.saveGraphicsState()
+        circle.addClip()
+        let band = size * 0.16
+        let startX = c.x - r * 1.6 + sweep * (r * 3.2)
+        let layers = 26
+        for i in 0..<layers {
+            let f = CGFloat(i) / CGFloat(layers - 1)
+            let x = startX + (f - 0.5) * band
+            let a = 0.22 * sin(.pi * f)                      // 中间最亮、两端渐隐
+            let line = NSBezierPath()
+            line.move(to: NSPoint(x: x - band * 0.5, y: c.y - r * 1.5))
+            line.line(to: NSPoint(x: x + band * 0.5, y: c.y + r * 1.5))
+            line.lineWidth = band / CGFloat(layers) * 1.6
+            NSColor(calibratedWhite: 1, alpha: a * ease).setStroke()
+            line.stroke()
+        }
+        NSGraphicsContext.restoreGraphicsState()
     }
 }

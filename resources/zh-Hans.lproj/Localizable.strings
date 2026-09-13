@@ -25,7 +25,7 @@
 "button.stop" = "停止服务";
 "button.ok" = "好";
 "notify.confirm.title" = "DeepSeek Harness 需要确认";
-"notify.confirm.body" = "有任务需要你到 dsh 网页确认。";
+"notify.confirm.body" = "有任务需要你到 dsh 网页确认，选好之后图标会收回成开关。";
 "notify.complete.title" = "DeepSeek Harness · 完成";
 "notify.complete.body" = "任务已完成，去 dsh 网页查看。";
 "notify.question.title" = "DeepSeek Harness 在等你选择";

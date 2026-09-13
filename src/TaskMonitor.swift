@@ -24,6 +24,7 @@ struct SessionCursor {
 struct ScanResult {
     var confirm = false   // 需要确认（审批 / 权限）
     var question = false  // 停下来等你选择（交互式提问 / 计划审批）
+    var resumed = false   // 你已作出选择、dsh 继续运算（审批已决 或 新一轮开始）
     var complete = false  // 任务完成
     var busy = false      // 任务进行中
 }
@@ -111,6 +112,11 @@ enum TaskMonitor {
         type == "approval/request" || type == "approval/asked" || type == "permission/ask"
     }
 
+    /// 你已经作出选择、dsh 继续运算：审批被决定（approval/decided）或新一轮开始（turn/start）
+    static func isResumeEvent(_ type: String) -> Bool {
+        type == "approval/decided"
+    }
+
     /// 停下来等你选择：这些工具会阻塞等你回答/批准，日志里**没有**专用事件
     /// （不像审批有 approval/asked），只以 `tool/call` 出现，因此按工具名识别。
     static func isQuestionTool(_ name: String?) -> Bool {
@@ -175,6 +181,9 @@ enum TaskMonitor {
                 if !cursor.goalActive { result.complete = true }
             case "turn/start":
                 result.busy = true
+                result.resumed = true        // 新一轮开始 = 你已选择、dsh 继续
+            case "approval/decided":
+                result.resumed = true
             case "tool/call":
                 // 交互式提问 / 计划审批：会话在这里停下来等你选，日志里没有专用事件
                 if isQuestionTool(e.toolName) { result.question = true }

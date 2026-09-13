@@ -19,9 +19,9 @@ The UI language **follows the system**, with built-in **English / 简体中文 /
 | Off | Running · Idle | Task running | Task done | Needs confirmation | Waiting for your choice |
 |:--:|:--:|:--:|:--:|:--:|:--:|
 | ![off](docs/icon-off.png) | ![running](docs/icon-running.png) | ![busy](docs/icon-busy.png) | ![done](docs/icon-remind-complete.png) | ![confirm](docs/icon-remind-confirm.png) | ![choice](docs/icon-remind-question.gif) |
-| Red · knob left | Green · knob right | Multi-color aurora flow | Inward edge glow + white streamer (green) | Red dot pulse, top-right | Red dot pulse, top-right |
+| Red · knob left | Green · knob right | Multi-color aurora flow | Inward edge glow + white streamer (green) | Question-mark morph | Question-mark morph |
 
-> The last cell is an **animation**: this “waiting for your choice” state appears when dsh stops for an option prompt (`ask_user_question`) or plan approval (`exit_plan_mode`), and the red dot keeps pulsing until you return to the page or choose “Got it”. “Needs confirmation” (approvals) uses the same red dot pulse — both mean **you are needed**; the Dock badge (`!` vs `?`) tells the two apart.
+> The last cell is an **animation**: when dsh stops for an option prompt (`ask_user_question`) or plan approval (`exit_plan_mode`), **DeepSeek and HARNESS move apart, the switch's white knob grows into a large circle, and a blue question mark appears inside it**. The glow inside the circle then keeps breathing **until you actually make your choice in the dsh page and dsh continues**, at which point a **reverse animation** folds it back into the switch. “Needs confirmation” (approvals) plays the same animation; the Dock badge (`!` vs `?`) tells the two apart.
 
 The icon uses a **squircle (continuous-corner)** shape and swaps its plate colors automatically for light/dark system appearance:
 
@@ -72,7 +72,7 @@ DeepSeek Harness 开关.app   (current version v0.15.0)
   - `Running · Idle` (green, knob right)
   - `Task running` — multi-color aurora flow (blue → cyan → green → violet long gradient drifting slowly + a soft light sweep, 60 fps)
   - `Needs attention` — **you are needed** (confirmation or a pending choice) = a **red dot pulsing** at the top-right corner (scale + soft spread, 60 fps); **task done** = green inward edge glow + a 2 px white streamer along the edge
-- **Dynamic alerts**: when a task finishes, needs confirmation, or is **waiting for your choice** (option prompts, plan approval), the icon bounces 4 times with a notification and a sound, then settles into a **quiet continuous reminder**; it stops as soon as you **return to the dsh page**, click the icon, or choose “Got it” (no periodic bouncing).
+- **Dynamic alerts**: confirmation and **waiting for your choice** play the **question-mark morph** (0.5 s morph → brightness breathing that loops until you decide → a 0.42 s reverse animation folding back into the switch), together with a bounce, a notification and a sound; task completion still uses the green edge glow. Clicking the icon, choosing “Got it”, or moving the pointer onto the Dock also folds it back immediately.
 - **Configurable alert sounds** (right-click menu → “Sound Settings…” opens a **dedicated window**): one aligned row per alert — confirmation / choice / task done / service started / service stopped — each with a sound popup (system sounds + `~/Library/Sounds`) and a preview button; the three reminders also get a **repeat count**: `1` / `2` / `3` / `5`, or **“until the pointer reaches the Dock”** (stops the moment the pointer enters the Dock or menu bar area — no Accessibility permission needed). The bottom row holds a “preview when selecting a sound” switch and “Restore Defaults”; settings persist.
 - **Completion counter on the Dock badge**: each finished task increments a count (`1`, `2`, …) shown on the Dock icon; it resets to zero when you return to the dsh page, click the icon, or choose “Got it”. Confirmation shows `!`, a pending choice shows `?`.
 - **About**: the right-click menu's “About …” shows the app name, version (with build number), the GitHub URL and the sponsor link, each openable from a button in the dialog.

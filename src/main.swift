@@ -44,6 +44,17 @@ final class BusyFlowView: NSView {
     }
 }
 
+/// Dock「需要你介入」提醒视图：变形（文字分开 + 白圆点放大成正圆 + 蓝色问号浮现）→ 亮度呼吸循环 → 反向收回
+final class AskMorphView: NSView {
+    var time: CGFloat = 0
+    var reverse = false
+    var loop: AskMorphLoop = .brightness
+    override func draw(_ dirtyRect: NSRect) {
+        drawAskMorphIcon(rect: NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height),
+                         time: time, loop: loop, variant: currentIconVariant(), reverse: reverse)
+    }
+}
+
 /// Dock「需要你介入」提醒视图：右上角圆点脉冲（需确认 / 等你选择）
 final class DotPulseView: NSView {
     var dotColor: NSColor = NSColor(calibratedRed: 0.94, green: 0.22, blue: 0.24, alpha: 1)
@@ -63,6 +74,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var turnActive = false
     private var cursors: [String: SessionCursor] = [:]
     private var monitorQueue = DispatchQueue(label: "dsh.monitor", qos: .background)
+
+    /// 提醒动画的三段：变形 → 循环呼吸 → 反向收回
+    private enum MorphPhase { case intro, looping, outro }
+    private var morphPhase: MorphPhase = .intro
+    private var morphPhaseStart: TimeInterval = 0
+    private var morphView: AskMorphView?
+    private let morphOutroDuration: TimeInterval = 0.42
 
     // 提醒节奏（逻辑拍 0.5s）
     private var promptTimer: Timer?
@@ -441,6 +459,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func animBeat() {
         guard serviceRunning, animationsEnabled else { return }
         let t = Date().timeIntervalSinceReferenceDate
+        // 反向收尾独立于 displayState（此时提醒已 dismiss，状态可能已切回 running/busy）
+        if morphView != nil, morphPhase == .outro {
+            let el = t - morphPhaseStart
+            if el >= morphOutroDuration {
+                teardownRemindView()
+                return
+            }
+            let v = morphView!
+            v.reverse = true
+            v.time = CGFloat(el / morphOutroDuration) * AskMorph.intro
+            v.needsDisplay = true
+            NSApp.dockTile.display()
+            return
+        }
         if displayState == .busy {
             guard let v = ensureBusyView() else { return }
             v.phase = CGFloat(t)               // 秒；drawBusyFlowIcon 内部按秒换算速度
@@ -451,6 +483,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // 双频呼吸：主呼吸(慢) + 微脉动(快)，让效果有层次、不死板
             let breathe = 0.5 + 0.5 * sin(k * 2.2)
             let shimmer = 0.5 + 0.5 * sin(k * 6.8)
+            // 「需要你介入」：变形 → 亮度呼吸一直循环，直到你作出选择
+            if morphView != nil, let kind = remindKind, kind != .complete {
+                let v = morphView!
+                v.loop = .brightness
+                switch morphPhase {
+                case .intro:
+                    let el = t - morphPhaseStart
+                    v.reverse = false
+                    v.time = CGFloat(min(el, AskMorph.intro))
+                    if el >= AskMorph.intro { morphPhase = .looping; morphPhaseStart = t }
+                case .looping:
+                    v.reverse = false
+                    v.time = AskMorph.intro + CGFloat(t - morphPhaseStart)   // 一直循环
+                case .outro:
+                    break
+                }
+                v.needsDisplay = true
+                NSApp.dockTile.display()
+                return
+            }
             if let kind = remindKind, kind != .complete {
                 // 「需要你介入」→ 右上角圆点脉冲
                 guard let v = ensureDotPulseView() else { return }
@@ -497,6 +549,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .question: postNotification(title: L("notify.question.title"), body: L("notify.question.body"))
         case .complete: postNotification(title: L("notify.complete.title"), body: L("notify.complete.body"))
         }
+        // 需要你介入的两态用「变形 → 亮度呼吸」动画；完成态仍用绿色发光
+        if kind != .complete, animationsEnabled {
+            morphPhase = .intro
+            morphPhaseStart = Date().timeIntervalSinceReferenceDate
+            _ = ensureAskMorphView()
+            log("变形动画：开始（0.5s 变形后进入亮度呼吸循环）")
+        }
         // 提示音：按该提醒配置的音效与重复次数播放（重复次数可在右键菜单里设）
         SoundCenter.shared.play(soundSlot(for: kind))
         log("进入提醒：\(reason)（先大跳，之后持续提醒直到你回 dsh 网页）")
@@ -524,7 +583,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             attentionRequestID = nil
         }
         NSApp.dockTile.badgeLabel = nil
-        teardownRemindView()
+        if morphView != nil, morphPhase != .outro, animationsEnabled {
+            // 反向动画：问号收回成开关，播完再拆（见 animBeat）
+            morphPhase = .outro
+            morphPhaseStart = Date().timeIntervalSinceReferenceDate
+            log("变形动画：反向收回")
+        } else {
+            teardownRemindView()
+        }
         refreshUI()
     }
 
@@ -556,10 +622,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return dotView
     }
 
+    private func ensureAskMorphView() -> AskMorphView? {
+        if morphView == nil {
+            busyView = nil
+            remindView = nil
+            dotView = nil
+            let v = AskMorphView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
+            NSApp.dockTile.contentView = v
+            morphView = v
+        }
+        return morphView
+    }
+
     private func ensureBusyView() -> BusyFlowView? {
         if busyView == nil {
             remindView = nil
             dotView = nil
+            morphView = nil
             let v = BusyFlowView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
             NSApp.dockTile.contentView = v
             busyView = v
@@ -569,10 +648,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// 结束提醒/动画：切回静态图标（撤销 contentView，避免 Dock 停留在动画帧）
     private func teardownRemindView() {
-        if remindView != nil || busyView != nil || dotView != nil {
+        if remindView != nil || busyView != nil || dotView != nil || morphView != nil {
             remindView = nil
             busyView = nil
             dotView = nil
+            morphView = nil
             NSApp.dockTile.contentView = nil
             NSApp.applicationIconImage = dockIcon(.running, variant: currentIconVariant())   // 立即回到正常静态图标
             NSApp.dockTile.display()                          // 强制 Dock 刷新，杜绝残留动画帧
@@ -599,7 +679,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // 扫描事件（缺 zstd 时跳过：仅显示服务状态，不崩溃）
         guard TaskMonitor.zstdExecutablePath() != nil else { return }
-        var confirmSeen = false, questionSeen = false, completeSeen = false, busySeen = false
+        var confirmSeen = false, questionSeen = false, completeSeen = false, busySeen = false, resumedSeen = false
         let files = TaskMonitor.candidates()
         for url in files {
             let k = url.path
@@ -610,6 +690,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             cursors[k] = c
             if r.confirm { confirmSeen = true }
             if r.question { questionSeen = true }
+            if r.resumed { resumedSeen = true }
             if r.complete { completeSeen = true }
             if r.busy { busySeen = true }
         }
@@ -625,6 +706,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if (self.remindKind != nil) && userBack { self.dismissReminding(reason: "检测到回网页") }
             if completeSeen { self.turnActive = false }   // 回合结束，退出“进行中”
             if busySeen { self.turnActive = true }        // 新回合开始 → 进入“进行中”
+            // 你已在 dsh 页面作出选择、dsh 继续运算 → 播放反向动画收回到开关
+            if self.remindKind != nil, resumedSeen, !confirmSeen, !questionSeen {
+                self.dismissReminding(reason: "你已作出选择，dsh 继续运算")
+            }
             if confirmSeen { self.beginRemind(kind: .confirm, reason: "需确认") }
             else if questionSeen { self.beginRemind(kind: .question, reason: "等待你选择") }
             else if completeSeen && !userBack { self.beginRemind(kind: .complete, reason: "完成") }
