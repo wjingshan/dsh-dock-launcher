@@ -457,12 +457,20 @@ func dockIconDotPulse(dotColor: NSColor, pulse: CGFloat, size: CGFloat = 128,
 /// 时间轴与几何参数（改这里即可微调节奏与比例）
 enum AskMorph {
     static let intro: CGFloat = 0.90           // 开场变形时长（秒）：0.5s 时动作全堆在前段，肉眼看像“啪”地一下，读不出变形过程
-    static let circleRFrac: CGFloat = 0.272    // 大白圆半径 / 图标边长
+    static let circleRFrac: CGFloat = 0.240    // 背景面板（圆角正方形）的半边长 / 图标边长
     static let questionInkFrac: CGFloat = 0.420 // 问号墨迹高度 / 图标边长
     static let spreadFrac: CGFloat = 0.125     // 品牌字上下分开距离 / 图标边长
     static let questionDelay: CGFloat = 0.25   // 问号在变形进度 25% 处才开始出现
     static let questionColor = NSColor(calibratedRed: 0.11, green: 0.47, blue: 1.00, alpha: 1)
     static let checkInkWFrac: CGFloat = 0.300   // 对勾墨迹宽度 / 图标边长
+    // 多选「淡化叠加」循环的时间比例（均占一个循环周期）：
+    //   先画一笔（drawFrac）→ 画完立即从起点开始淡掉（fadeFrac）→ 旧笔迹还剩 overlapKeepFrac 时，
+    //   新一笔从起点重新画 —— 此时旧笔迹尾巴仍在淡出，两笔同框。
+    // 约束：drawFrac + (1 − overlapKeepFrac)·fadeFrac = 1（保证新笔恰好在本轮结束时起笔）。
+    // 当前 0.595 + 0.45×0.90 = 1.0 ✓
+    static let cycleDrawFrac: CGFloat = 0.595
+    static let cycleFadeFrac: CGFloat = 0.90
+    static let cycleOverlapKeepFrac: CGFloat = 0.55
 }
 
 /// 圆圈里的符号形态：单选/普通提问用问号，多选问题用对勾
@@ -479,6 +487,7 @@ enum AskMorphLoop: Int, CaseIterable {
     case brightness       // ④ 亮度呼吸（问号透明度起伏，无位移）
     case sheen            // ⑤ 光带扫过（一道柔光斜掠圆面）
     case dotPulse         // ⑥ 圆点脉冲（只有问号下方那个点轻微搏动）
+    case drawCheck        // ⑦ 循环书写对勾（保持 → 淡出 → 重新写出；多选用）
 
     var name: String {
         switch self {
@@ -488,6 +497,7 @@ enum AskMorphLoop: Int, CaseIterable {
         case .brightness: return "亮度呼吸"
         case .sheen: return "光带扫过"
         case .dotPulse: return "圆点脉冲"
+        case .drawCheck: return "循环书写"
         }
     }
 
@@ -500,6 +510,7 @@ enum AskMorphLoop: Int, CaseIterable {
         case .brightness: return 0.75
         case .sheen: return 1.5
         case .dotPulse: return 0.75
+        case .drawCheck: return 3.2     // 书写动作要看得清，周期放长
         }
     }
 }
@@ -632,6 +643,61 @@ func makeTechCheck(center: CGPoint, inkWidth: CGFloat, reveal: CGFloat) -> TechC
                      inkBounds: fullOutline.boundingBox.applying(t))
 }
 
+/// 对勾笔画在书写进度 `reveal` 处的前端点（“笔尖”）的实际坐标。
+/// 与 makeTechCheck 使用完全相同的几何与归一化变换，保证亮笔头严格落在笔画上。
+func techCheckTip(center: CGPoint, inkWidth: CGFloat, reveal: CGFloat) -> CGPoint? {
+    let p0 = CGPoint(x: -0.66, y: 0.06)
+    let p1 = CGPoint(x: -0.18, y: -0.46)
+    let p2 = CGPoint(x: 0.70, y: 0.46)
+    let w: CGFloat = 0.30
+    let l1 = hypot(p1.x - p0.x, p1.y - p0.y)
+    let l2 = hypot(p2.x - p1.x, p2.y - p1.y)
+    let want = max(0, min(1, reveal)) * (l1 + l2)
+    let tip: CGPoint
+    if want <= l1 {
+        let f = l1 > 0 ? want / l1 : 0
+        tip = CGPoint(x: p0.x + (p1.x - p0.x) * f, y: p0.y + (p1.y - p0.y) * f)
+    } else {
+        let f = l2 > 0 ? (want - l1) / l2 : 0
+        tip = CGPoint(x: p1.x + (p2.x - p1.x) * f, y: p1.y + (p2.y - p1.y) * f)
+    }
+    let full = NSBezierPath()
+    full.move(to: p0); full.line(to: p1); full.line(to: p2)
+    let fullOutline = full.cgPath.copy(strokingWithWidth: w, lineCap: .round,
+                                      lineJoin: .round, miterLimit: 10)
+    let raw = fullOutline.boundingBox
+    let sc = inkWidth / raw.width
+    let t = CGAffineTransform(translationX: -raw.midX, y: -raw.midY)
+        .concatenating(CGAffineTransform(scaleX: sc, y: sc))
+        .concatenating(CGAffineTransform(translationX: center.x, y: center.y))
+    return tip.applying(t)
+}
+
+/// 画「正在淡出」的对勾笔画段 [from, to]（均为 0…1 的比例）。
+/// 用一条「透明 → 实心」的线性渐变填充，渐变起点即当前淡化推进位置 ——
+/// 起点之前由 drawsBeforeStartLocation 填成完全透明，于是观感就是笔迹从起点一点点褪掉，
+/// 而不是被「擦短」（形状变短）或整条同时变淡。
+func drawFadingCheck(center: CGPoint, inkWidth: CGFloat, color: NSColor,
+                     from: CGFloat, to: CGFloat) {
+    guard to > from, to - from > 0.004,
+          let body = makeTechCheck(center: center, inkWidth: inkWidth, reveal: to),
+          let pA = techCheckTip(center: center, inkWidth: inkWidth, reveal: from),
+          let pB = techCheckTip(center: center, inkWidth: inkWidth, reveal: to),
+          let ctx = NSGraphicsContext.current?.cgContext else { return }
+    ctx.saveGState()
+    ctx.addPath(body.partialOutline)
+    ctx.clip()
+    if let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                             colors: [color.withAlphaComponent(0).cgColor,
+                                      color.cgColor,
+                                      color.cgColor] as CFArray,
+                             locations: [0, 0.34, 1]) {
+        ctx.drawLinearGradient(grad, start: pA, end: pB,
+                               options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+    }
+    ctx.restoreGState()
+}
+
 /// 画对勾：蓝色填充 + 与问号一致的淡内阴影
 func drawTechCheck(_ c: TechCheck, color: NSColor) {
     let bez = NSBezierPath(cgPath: c.partialOutline)
@@ -701,22 +767,29 @@ func drawAskMorphIcon(rect: NSRect, time: CGFloat, loop: AskMorphLoop = .breathe
     let c = CGPoint(x: center.x + (c0.x - center.x) * breathe,
                     y: center.y + (c0.y - center.y) * breathe)
 
-    // ③a 环境蓝光（圆后面一层很淡的光）
+    // 背景面板几何：圆角正方形（macOS squircle 风格，圆角 ≈ 边长的 24%）。
+    // 传入半径即返回以 c 为中心、边长 2×半径 的圆角方形路径。
+    func panelPath(_ radius: CGFloat) -> NSBezierPath {
+        let rect = NSRect(x: c.x - radius, y: c.y - radius, width: radius * 2, height: radius * 2)
+        let corner = radius * 0.48          // = 边长 × 0.24
+        return NSBezierPath(roundedRect: rect, xRadius: corner, yRadius: corner)
+    }
+
+    // ③a 环境蓝光（面板后面一层很淡的光）
     if ease > 0.05 {
         let layers = 10
         for i in 0..<layers {
             let f = CGFloat(i) / CGFloat(layers - 1)
             let rr = r * (1.02 + 0.30 * f)
             AskMorph.questionColor.withAlphaComponent(0.055 * (1 - f) * ease).setFill()
-            NSBezierPath(ovalIn: NSRect(x: c.x - rr, y: c.y - rr, width: rr * 2, height: rr * 2)).fill()
+            panelPath(rr).fill()
         }
     }
 
-    // ③b 圆本体：径向渐变（中心纯白 → 边缘极淡冷灰），带投影
+    // ③b 面板本体：径向渐变（中心纯白 → 边缘极淡冷灰），带投影
     // 关键：透明度跟随变形进度 ⇒ 正向时从"圆点"淡入、反向时淡出回"圆点"，
-    // 两套绘制（我的圆 vs 图标自带的圆点）交叉淡化，收尾不会跳
-    let circleRect = NSRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)
-    let circle = NSBezierPath(ovalIn: circleRect)
+    // 两套绘制（我的面板 vs 图标自带的圆点）交叉淡化，收尾不会跳
+    let circle = panelPath(r)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current?.cgContext.setAlpha(min(1, ease * 2.5))
     let circleShadow = NSShadow()
@@ -736,7 +809,7 @@ func drawAskMorphIcon(rect: NSRect, time: CGFloat, loop: AskMorphLoop = .breathe
     if ease > 0.15 {
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current?.cgContext.setAlpha(min(1, (ease - 0.15) / 0.85))
-        let outer = NSBezierPath(ovalIn: circleRect.insetBy(dx: -1.5, dy: -1.5))
+        let outer = panelPath(r + 1.5)
         outer.lineWidth = 1.0
         NSColor(calibratedWhite: 1, alpha: 0.18).setStroke()
         outer.stroke()
@@ -749,25 +822,23 @@ func drawAskMorphIcon(rect: NSRect, time: CGFloat, loop: AskMorphLoop = .breathe
         for i in 0..<rings {
             var ph = (lt / loop.period) + CGFloat(i) / CGFloat(rings)
             ph = ph.truncatingRemainder(dividingBy: 1)
-            // 从圆外一点起始、sin 包络淡入淡出，避免起始相位与圆边重合而被读成"双圈"
+            // 从面板外一点起始、sin 包络淡入淡出，避免起始相位与面板边重合而被读成"双圈"
             let rr = r * (1.06 + 0.34 * ph)
-            let ring = NSBezierPath(ovalIn: NSRect(x: c.x - rr, y: c.y - rr, width: rr * 2, height: rr * 2))
+            let ring = panelPath(rr)
             ring.lineWidth = 1.5
             AskMorph.questionColor.withAlphaComponent(0.38 * sin(.pi * ph) * ease).setStroke()
             ring.stroke()
         }
     }
 
-    // ③e 亮度呼吸：圆内一层蓝色柔光随呼吸明暗（问号本体不动、不变淡）
+    // ③e 亮度呼吸：面板内一层蓝色柔光随呼吸明暗（问号本体不动、不变淡）
     if loop == .brightness, settled, ease > 0.2 {
         let glowR = r * 0.98
         if let g = NSGradient(colors: [AskMorph.questionColor.withAlphaComponent(0.38 * wave * ease),
                                        AskMorph.questionColor.withAlphaComponent(0.0)]) {
             NSGraphicsContext.saveGraphicsState()
             circle.addClip()
-            g.draw(in: NSBezierPath(ovalIn: NSRect(x: c.x - glowR, y: c.y - glowR,
-                                                   width: glowR * 2, height: glowR * 2)),
-                   relativeCenterPosition: .zero)
+            g.draw(in: panelPath(glowR), relativeCenterPosition: .zero)
             NSGraphicsContext.restoreGraphicsState()
         }
     }
@@ -777,6 +848,11 @@ func drawAskMorphIcon(rect: NSRect, time: CGFloat, loop: AskMorphLoop = .breathe
     let qp = min(1, max(0, (ease - AskMorph.questionDelay) / (1 - AskMorph.questionDelay)))
     guard qp > 0.001, r > 4 else { return }
     let qEase = reverse ? qp : 1 - pow(1 - qp, 3)
+
+    // 循环「重描」（多选）：对勾始终完整不消失，一道高亮笔头带着拖尾沿笔画循环描过。
+    // 本体 reveal 落定后固定为 1；高亮靠「起点淡入、终点淡出」收尾，
+    // 所以循环回到起点时是「已淡出 → 再淡入」，不会出现跳变。
+    let checkReveal = qEase
 
     // 亮度呼吸：只改透明度，不产生位移
     let qAlpha = min(1, qp * 1.8)                                     // 问号本体保持清晰，不靠变淡做呼吸
@@ -799,11 +875,32 @@ func drawAskMorphIcon(rect: NSRect, time: CGFloat, loop: AskMorphLoop = .breathe
         let q = makeTechQuestion(center: center, inkHeight: size * AskMorph.questionInkFrac)
         drawTechQuestion(q, color: qColor, dotScale: dotScale)
     case .check:
-        // 对勾按书写进度画出（反向时同样倒着收回）
-        if let check = makeTechCheck(center: center,
-                                     inkWidth: size * AskMorph.checkInkWFrac,
-                                     reveal: qEase) {
-            drawTechCheck(check, color: qColor)
+        if loop == .drawCheck, settled, !reverse {
+            // 循环「淡化叠加」（无笔头、无收笔）：
+            //   画一笔 → 画完从**起点**开始颜色逐渐变淡 → 淡到只剩 1/3 时新一笔从起点重画，
+            //   旧笔迹的尾巴继续淡出 —— 两笔在时间上叠加。
+            //   每轮用一条「透明 → 实心」的线性渐变填充笔画：渐变起点即当前淡化推进位置，
+            //   起点之前由 drawsBeforeStartLocation 填成透明，自然形成「从起点褪掉」的观感。
+            let u = (lt / loop.period).truncatingRemainder(dividingBy: 1)
+            let dFrac = AskMorph.cycleDrawFrac
+            let eFrac = AskMorph.cycleFadeFrac
+            let inkW = size * AskMorph.checkInkWFrac
+            // 本轮：画到 head；画完后起点侧淡出到 erase
+            let head = smoothstep(min(1, u / dFrac))
+            let erase = u > dFrac ? smoothstep(min(1, (u - dFrac) / eFrac)) : 0
+            drawFadingCheck(center: center, inkWidth: inkW, color: qColor, from: erase, to: head)
+            // 上一轮：只剩尾巴在继续淡出（u=0 时正好淡掉 2/3、还剩 1/3）
+            let prevErase = smoothstep(min(1, max(0, (u + 1 - dFrac) / eFrac)))
+            if prevErase < 0.999 {
+                drawFadingCheck(center: center, inkWidth: inkW, color: qColor, from: prevErase, to: 1)
+            }
+        } else {
+            // 变形段随 ease 写出、反向时倒着收回（其他循环模式也走这里）
+            if let check = makeTechCheck(center: center,
+                                         inkWidth: size * AskMorph.checkInkWFrac,
+                                         reveal: checkReveal) {
+                drawTechCheck(check, color: qColor)
+            }
         }
     }
     NSGraphicsContext.restoreGraphicsState()

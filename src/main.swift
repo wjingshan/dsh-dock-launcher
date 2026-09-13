@@ -485,10 +485,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // 双频呼吸：主呼吸(慢) + 微脉动(快)，让效果有层次、不死板
             let breathe = 0.5 + 0.5 * sin(k * 2.2)
             let shimmer = 0.5 + 0.5 * sin(k * 6.8)
-            // 「需要你介入」：变形 → 亮度呼吸一直循环，直到你作出选择
+            // 「需要你介入」：变形 → 落定后持续循环，直到你作出选择
             if morphView != nil, let kind = remindKind, kind != .complete {
                 let v = morphView!
-                v.loop = .brightness
+                // 多选（对勾）循环「书写对勾」；单选（问号）保持亮度呼吸
+                v.loop = (morphSymbol == .check) ? .drawCheck : .brightness
                 v.symbol = morphSymbol
                 switch morphPhase {
                 case .intro:
