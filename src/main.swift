@@ -231,7 +231,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         animationsEnabled = !animationsEnabled
         log("动画：\(animationsEnabled ? "开启" : "关闭")")
         if !animationsEnabled { teardownRemindView() }   // 立即停掉正在跑的动画视图
-        refreshUI()
+        refreshUI(force: true)
     }
     @objc private func openLogAction() {
         NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/dsh-launcher.log"))
@@ -734,8 +734,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return turnActive ? .busy : .running
     }
 
-    private func refreshUI() {
+    /// 上一次刷新时的状态签名：状态没变时跳过重建（否则 0.4s 轮询会把菜单栏图标/菜单高频重建，看起来像闪烁）
+    private var lastUISignature: String?
+
+    private func refreshUI(force: Bool = false) {
         let s = computedState()
+        let sig = "\(s)|\(String(describing: remindKind))|\(serviceRunning)"
+        if !force, sig == lastUISignature { return }
+        lastUISignature = sig
         if s != displayState { log("状态切换 → \(stateLabel(s))") }
         displayState = s
         statusItem.button?.image = menuIconTemplate(s.live, size: 17)
@@ -790,7 +796,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let a = NSAlert(); a.messageText = L("app.name"); a.informativeText = m; a.alertStyle = .critical; a.addButton(withTitle: L("button.ok")); a.runModal()
     }
     private func log(_ m: String) {
-        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
         let l = "[\(f.string(from: Date()))] \(m)\n"
         FileHandle.standardError.write(Data(l.utf8))
         let u = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/dsh-launcher.log")
