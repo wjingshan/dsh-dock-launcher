@@ -18,6 +18,7 @@ final class AboutBox: NSObject {
     static let gapIconName: CGFloat = 12
     static let gapNameInfo: CGFloat = 3
     static let gapInfoButtons: CGFloat = 22
+    static let gapButtonsOK: CGFloat = 10     // 链接按钮行与「好」之间的行距
     static let buttonGap: CGFloat = 10
 
     private static var window: NSWindow?      // 持有引用，避免窗口被释放
@@ -57,18 +58,20 @@ final class AboutBox: NSObject {
         ok.bezelStyle = .rounded
         ok.keyEquivalent = "\r"                       // 回车＝关闭
 
-        let buttons = NSStackView(views: [repo, sponsor, ok])
-        buttons.orientation = .horizontal
-        buttons.spacing = buttonGap
-        buttons.alignment = .centerY
+        // 两个链接按钮一行，「好」单独换行放到下一行（各自居中）
+        let linkButtons = NSStackView(views: [repo, sponsor])
+        linkButtons.orientation = .horizontal
+        linkButtons.spacing = buttonGap
+        linkButtons.alignment = .centerY
 
-        let stack = NSStackView(views: [icon, name, info, buttons])
+        let stack = NSStackView(views: [icon, name, info, linkButtons, ok])
         stack.orientation = .vertical
         stack.alignment = .centerX                     // 每行水平居中
         stack.spacing = 0
         stack.setCustomSpacing(gapIconName, after: icon)
         stack.setCustomSpacing(gapNameInfo, after: name)
         stack.setCustomSpacing(gapInfoButtons, after: info)
+        stack.setCustomSpacing(gapButtonsOK, after: linkButtons)
 
         let content = NSView()
         stack.translatesAutoresizingMaskIntoConstraints = false
