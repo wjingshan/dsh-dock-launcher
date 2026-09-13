@@ -1,0 +1,14 @@
+# dsh-dock-bridge — one host row.
+#
+# It injects the Web server and Connection services, then publishes this
+# process's PID, bound port and tokenized root URL to a runtime file that the
+# DeepSeek Harness Switch Dock app reads, so the app can open an already
+# authenticated page and know which process owns the port.
+#
+# The row is ordinary: no launcher metadata, no special row kind. Remove this
+# insert (or disable the row) and the harness behaves exactly as before; the
+# Dock app falls back to reading the server's startup log.
+
+- insert:
+    - id: dsh-dock-bridge
+      name: 'dsh-dock-bridge'

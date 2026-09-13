@@ -43,6 +43,13 @@ enum EnvCheck {
             out.append(EnvFinding(severity: .warning, titleKey: "env.apikey.missing", detailArg: ""))
         }
 
+        // dock-bridge 宿主插件（可选增强：装了就直接拿到带 token 的地址，不必回退去读日志）
+        if ServiceManager.tokenURLFromDockBridge() != nil {
+            out.append(EnvFinding(severity: .info, titleKey: "env.bridge.found", detailArg: ""))
+        } else {
+            out.append(EnvFinding(severity: .info, titleKey: "env.bridge.absent", detailArg: ""))
+        }
+
         return out
     }
 

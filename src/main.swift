@@ -68,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // UI
     private var statusItem: NSStatusItem!
     private var envFindings: [EnvFinding] = []
+    private var completedCount = 0        // 累计完成数（显示在 Dock 徽标，回到页面后清零）
 
     // MARK: 生命周期
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -322,7 +323,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     private func openBrowser() {
-        let result = Frontmost.bringDSHToFront(url: kWebURL.absoluteString)
+        // 优先使用带 token 的地址（不带 token 访问会 401 要求认证）
+        let target = ServiceManager.webURLWithToken() ?? kWebURL
+        let result = Frontmost.bringDSHToFront(url: target.absoluteString)
         switch result {
         case "focused": log("已回到原有 dsh 标签页")
         case "newtab": log("原 dsh 页面已关闭，已在浏览器当前窗口新开标签恢复页面")
@@ -409,8 +412,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         remindKind = kind
         bigBouncesLeft = 4            // 先来 4 次大跳
         displayState = .reminding
-        if kind == .confirm { NSApp.dockTile.badgeLabel = "!" }
-        else { NSApp.dockTile.badgeLabel = "✓" }
+        if kind == .confirm {
+            NSApp.dockTile.badgeLabel = "!"
+        } else {
+            completedCount += 1                                  // 完成次数累加
+            NSApp.dockTile.badgeLabel = "\(completedCount)"      // 徽标显示完成数量（如 3）
+        }
         switch kind {
         case .confirm: postNotification(title: L("notify.confirm.title"), body: L("notify.confirm.body"))
         case .complete: postNotification(title: L("notify.complete.title"), body: L("notify.complete.body"))

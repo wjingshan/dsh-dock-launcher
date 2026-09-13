@@ -44,3 +44,5 @@
 "env.zstd.missing" = "zstd not found — task monitoring and alerts are disabled. Run `brew install zstd` and restart this app.";
 "env.apikey.found" = "DEEPSEEK_API_KEY found";
 "env.apikey.missing" = "DEEPSEEK_API_KEY not found — dsh will report \"no API key\". Export it in ~/.zshrc or save it on the dsh Models page.";
+"env.bridge.found" = "dock-bridge plugin active — the tokenized URL is read from its runtime file";
+"env.bridge.absent" = "dock-bridge plugin not installed (optional) — the tokenized URL falls back to the dsh startup log";

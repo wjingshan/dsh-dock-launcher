@@ -44,3 +44,5 @@
 "env.zstd.missing" = "zstd が見つかりません — タスク監視と通知は無効です。`brew install zstd` を実行して本アプリを再起動してください。";
 "env.apikey.found" = "DEEPSEEK_API_KEY を検出";
 "env.apikey.missing" = "DEEPSEEK_API_KEY が見つかりません — dsh で「no API key」エラーになります。~/.zshrc に export するか、dsh の Models ページで保存してください。";
+"env.bridge.found" = "dock-bridge プラグインが有効 — ランタイムファイルからトークン付き URL を取得します";
+"env.bridge.absent" = "dock-bridge プラグイン未導入（任意）— dsh の起動ログからトークン付き URL を読み取ります";

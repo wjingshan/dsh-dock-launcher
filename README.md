@@ -59,12 +59,12 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/wjingshan/dsh-dock-launche
 ## 成品
 
 ```
-DeepSeek Harness 开关.app   （当前版本 v0.13.0）
+DeepSeek Harness 开关.app   （当前版本 v0.15.0）
 ```
 
 ## 功能
 
-- **程序坞左键 = 回到页面**：优先切回已打开的 `127.0.0.1:3080` 标签；页面被关了就恢复一个新标签；服务没运行则启动它。
+- **程序坞左键 = 回到页面**：优先切回已打开的 `127.0.0.1:3080` 标签；页面被关了就恢复一个新标签；服务没运行则启动它。打开的是**带 token 的完整地址**，因此不会落到 401 未授权页：优先读 dock-bridge 插件写的运行时文件，未装该插件时回退解析 dsh 启动日志。
 - **程序坞右键 = 操作菜单**：打开页面 / 知道了(停止提醒) / **停止服务…（二次确认）** / **动画开关** / 打开日志 / 退出。
 - **状态图标（4 态）**：
   - `关闭`（红，滑块左）= 服务已停止
@@ -72,6 +72,7 @@ DeepSeek Harness 开关.app   （当前版本 v0.13.0）
   - `任务进行中`：多色极光流动（蓝→青→绿→紫长色带缓慢流动 + 一道柔光掠过，60fps）
   - `待关注提醒`：边缘向内呼吸发光 + 边缘内侧 2px 白色流光（沿边环绕）；完成=绿、需确认=橙
 - **动态提醒**：任务完成 / 需要确认且你不在 dsh 页面时，图标先弹跳 4 次 + 通知 + 音效，随后转为**安静的持续发光**；等你**回到 dsh 页面**、点图标或菜单「知道了」即停止（不会周期性乱跳）。
+- **完成数角标**：任务完成时在程序坞图标上显示**已完成计数**（`1`、`2`…）；回到 dsh 页面、点图标或菜单「知道了」后清零。
 - **动画总开关**：右键菜单可一键关闭/开启所有图标动画（关闭后为静态图标，弹跳与通知仍保留）；开销极低（仅动画态每帧重绘 128px 图标）。
 - **自动注入 API key**：GUI 启动的进程不读 `.zshrc`，本 App 会自动解析 `~/.zshenv` / `.zprofile` / `.zshrc` / `.bash_profile` / `.bashrc` / `.profile` 中的 `DEEPSEEK_API_KEY` 注入 dsh 子进程（只读、不落盘、不外传）。
 - **任务状态监测**：读取 `~/.dsh/sessions/*/session.jsonl.zstd` 活跃会话日志：
@@ -80,6 +81,23 @@ DeepSeek Harness 开关.app   （当前版本 v0.13.0）
   - `turn/start` → **进行中**
 
 > 完成提示规则：会话没有活跃 goal 时，一轮对话结束（`turn/end`）即算完成；会话存在活跃 goal 时，只在整个 goal 真正结束（`goal/change · complete`）时提示。监测覆盖所有近期活跃会话，多会话并行不漏检。
+
+## 与同类插件的关系
+
+dsh 生态里已有多个桌面启动器与提醒类项目，本 App 与它们的关键区别在**形态**：它不是 dsh 插件，而是一个独立的 macOS 原生程序坞应用——dsh 完全没有运行时，它照样在程序坞里待命，左键点一下就把服务拉起来并进入页面。
+
+生态中的相关项目（名称与描述均可对照 [awesome-dsh-plugin 精选列表](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 核实）：
+
+| 相关项目 | 形态 | 与本 App 的差异 |
+| --- | --- | --- |
+| `dsh-start` | macOS，命令行 + 脚本生成可入坞的 `DSH.app` | 功能面同为 macOS 启停，但以 CLI 与脚本构建为主，App 需自行生成 |
+| `dsh-launcher` | macOS，菜单栏应用 + 宿主插件写 `runtime.json` | 入口是**状态栏菜单**；本 App 的入口是**程序坞图标**本身 |
+| `dsh-unread-dot` | macOS，Dock 角标与提示音 | 基于 Web 侧 Badging API，属 dsh 插件内部；本 App 是原生程序坞应用自带角标与图标动效 |
+| `dsh-task-watcher-plugin` | Windows，托盘四态图标 + 任务面板 | 四态状态的思路接近，但只面向 Windows 托盘，且另起独立进程 |
+| `dsh-tray`、`dsh-dock`、`dsh-native-launcher`、`dsh-desktop-windowos` | Windows 托盘 / 桌面壳 | 平台不同 |
+| `dsh-clean-desktop-shell` | Windows + macOS 桌面壳 | 以快捷方式与托盘为主；不提供程序坞图标即状态显示 |
+
+本 App 的组合目前没有第二个项目同时具备：**程序坞图标本身就是状态显示与唯一入口**（左键回页面 / 右键出菜单），服务未运行时左键直接拉起服务；图标实时区分 `关闭 / 空闲 / 进行中 / 待关注` 四态；任务完成由**真实的 goal 结束事件**驱动，并在图标上累加完成数。
 
 ## 使用
 
@@ -90,6 +108,24 @@ DeepSeek Harness 开关.app   （当前版本 v0.13.0）
 5. 菜单栏小图标点击可打开同一套菜单。
 
 > 提示：首次使用请允许系统通知权限，才能收到「需要确认 / 任务完成」通知。
+
+## 可选增强：dock-bridge 宿主插件
+
+本仓库还附带一个小巧的 dsh 宿主插件 `plugins/dsh-dock-bridge`。装上它之后，App 不必再去解析 dsh 的启动日志，而是由 dsh 进程**直接把端口、PID 和带 token 的地址写出来**：
+
+```sh
+# 从本地路径安装（把路径换成你的克隆位置）
+dsh plugin --profile web add /path/to/dsh-dock-launcher/plugins/dsh-dock-bridge
+```
+
+装完重启一次 web profile 即可。要点：
+
+- 插件写 `~/.config/dsh-dock-launcher/runtime.json`（权限 `0600`，因为里面是活的 token），进程退出时删除；SIGTERM 退出路径也覆盖。
+- App 只在「上报 PID 仍存活」且「端口仍可连」时才采信该文件，崩溃残留会被自动忽略并回退读日志。
+- **不装插件也完全可用**：回退路径就是从 `~/Library/Logs/dsh-web.log` 里解析带 token 的地址。
+- 右键菜单「环境自检…」会显示当前走的是哪条路径。
+
+> 该插件同时是本仓库向 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 的投稿条目（它需要一个可 `dsh plugin add` 安装的宿主插件，而不是纯 `.app`）。
 
 ## 版本号规范
 
@@ -124,6 +160,7 @@ dsh-dock-launcher/
 │   └── draw_icon.swift     # 用 CoreGraphics 绘制 App 图标(生成 1024px PNG)
 ├── resources/              # 界面多语言（en / zh-Hans / ja / ko 的 Localizable.strings）
 ├── docs/                   # 状态图标预览图 + 支付宝收款码（README 引用）
+├── plugins/dsh-dock-bridge/    # 可选宿主插件：提供端口/PID/带 token 地址（可 dsh plugin add）
 ├── install.sh              # 一键安装到 /Applications
 ├── Info.plist              # 应用元数据（含 CFBundleLocalizations）
 ├── build.sh                # 一键构建脚本（读取 VERSION/BUILD_NO 注入版本号）

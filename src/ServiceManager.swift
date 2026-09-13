@@ -74,6 +74,68 @@ enum ServiceManager {
         return err == 0
     }
 
+    /// 从 dsh 启动日志中提取最近一次「带 token 的访问 URL」。
+    /// dsh web 启动时会把形如 http://127.0.0.1:3080/?token=… 的地址打印到 stdout（我们重定向到 dsh-web.log）。
+    /// 不带 token 直接访问会得到 401，因此打开页面时应优先用带 token 的地址。
+    /// dock-bridge 插件写出的运行时文件（可用 DSH_DOCK_RUNTIME 覆盖）
+    static var dockRuntimePath: URL {
+        if let env = ProcessInfo.processInfo.environment["DSH_DOCK_RUNTIME"], !env.isEmpty {
+            return URL(fileURLWithPath: env)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/dsh-dock-launcher/runtime.json")
+    }
+
+    /// 进程是否仍存活（kill(pid, 0) 只做存在性探测，不发送信号）
+    static func processIsAlive(pid: Int32) -> Bool {
+        guard pid > 0 else { return false }
+        if kill(pid, 0) == 0 { return true }
+        return errno == EPERM
+    }
+
+    /// 从 dock-bridge 插件的运行时文件读取带 token 的地址。
+    /// 只有「上报端口 == 当前端口」「PID 仍存活」「端口可连」三条同时成立才采信，
+    /// 否则说明文件是崩溃残留，继续回退到日志解析。
+    static func tokenURLFromDockBridge(port: UInt16 = port) -> URL? {
+        guard let data = try? Data(contentsOf: dockRuntimePath),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let raw = obj["url"] as? String,
+              let url = URL(string: raw),
+              url.scheme == "http",
+              let filePort = obj["port"] as? Int, filePort > 0, UInt16(filePort) == port,
+              let filePid = obj["pid"] as? Int, processIsAlive(pid: Int32(filePid)),
+              isPortOpen(host, port, timeout: 0.2)
+        else { return nil }
+        return url
+    }
+
+    /// 从 dsh 启动日志里解析带 token 的地址（插件未安装时的回退路径）
+    static func tokenURLFromLog(port: UInt16 = port) -> URL? {
+        let log = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/dsh-web.log")
+        guard let text = try? String(contentsOf: log, encoding: .utf8) else { return nil }
+        for host in ["127.0.0.1", "localhost"] {
+            let needle = "http://\(host):\(port)/?token="
+            guard let range = text.range(of: needle, options: .backwards) else { continue }
+            let token = text[range.upperBound...].prefix { ch in
+                ch.isLetter || ch.isNumber || ch == "_" || ch == "-"
+            }
+            if !token.isEmpty, let url = URL(string: needle + token) { return url }
+        }
+        return nil
+    }
+
+    /// 带 token 的完整地址：优先用 dock-bridge 插件写的运行时文件，回退到启动日志
+    static func webURLWithToken(port: UInt16 = port) -> URL? {
+        if let url = tokenURLFromDockBridge(port: port) { return url }
+        return tokenURLFromLog(port: port)
+    }
+
+    /// 脱敏后的地址（用于日志，避免把 token 写进日志）
+    static func redactedWebURL(port: UInt16 = port) -> String {
+        "http://127.0.0.1:\(port)/?token=***"
+    }
+
     /// 定位 dsh 可执行文件
     static func findDsh() -> URL? {
         let candidates = [

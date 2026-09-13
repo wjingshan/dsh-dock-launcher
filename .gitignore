@@ -6,3 +6,5 @@ BUILD_NO
 preview/
 *.log
 dist/
+.dshtest/
+node_modules/

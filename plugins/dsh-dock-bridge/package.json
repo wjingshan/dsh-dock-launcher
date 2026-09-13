@@ -1,0 +1,30 @@
+{
+  "name": "dsh-dock-bridge",
+  "version": "0.1.0",
+  "description": "Host plugin for the DeepSeek Harness Switch Dock app: publishes the running server's PID, port and tokenized URL to a runtime file, and removes it on shutdown.",
+  "license": "MIT",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "macos",
+    "dock",
+    "launcher"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

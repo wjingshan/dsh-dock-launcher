@@ -44,3 +44,5 @@
 "env.zstd.missing" = "未找到 zstd —— 任务状态监测与提醒不可用；可执行 `brew install zstd` 后重启本 App。";
 "env.apikey.found" = "已找到 DEEPSEEK_API_KEY";
 "env.apikey.missing" = "未找到 DEEPSEEK_API_KEY —— dsh 发消息会报 \"no API key\"。请在 ~/.zshrc 中 export，或在 dsh 网页的 Models 页保存。";
+"env.bridge.found" = "dock-bridge 插件已生效 —— 直接从它的运行时文件读取带 token 的地址";
+"env.bridge.absent" = "dock-bridge 插件未安装（可选）—— 改为从 dsh 启动日志读取带 token 的地址";

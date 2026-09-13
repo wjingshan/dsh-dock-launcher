@@ -58,12 +58,12 @@ Manual install: download the `.dmg` (drag the app into Applications) or `.zip` (
 ## Artifact
 
 ```
-DeepSeek Harness 开关.app   (current version v0.13.0)
+DeepSeek Harness 开关.app   (current version v0.15.0)
 ```
 
 ## Features
 
-- **Left-click the Dock icon = return to the page**: focuses an already-open `127.0.0.1:3080` tab; opens a new tab if the page was closed; starts the service if it is not running.
+- **Left-click the Dock icon = return to the page**: focuses an already-open `127.0.0.1:3080` tab; opens a new tab if the page was closed; starts the service if it is not running. It opens the **full tokenized URL**, so you never land on a 401 page: the runtime file written by the dock-bridge plugin is preferred, with the dsh startup log as the fallback when that plugin is not installed.
 - **Right-click the Dock icon = action menu**: open page / got it (stop reminding) / **Stop service… (with confirmation)** / **animation toggle** / open log / quit.
 - **Four icon states**:
   - `Off` (red, knob left) — service stopped
@@ -71,6 +71,7 @@ DeepSeek Harness 开关.app   (current version v0.13.0)
   - `Task running` — multi-color aurora flow (blue → cyan → green → violet long gradient drifting slowly + a soft light sweep, 60 fps)
   - `Needs attention` — inward glow from the icon edge + a 2 px white streamer travelling along the edge; green = done, orange = confirmation needed
 - **Dynamic alerts**: when a task finishes or needs confirmation *and* you are not on the dsh page, the icon bounces 4 times with a notification and a sound, then settles into a **quiet continuous glow**; it stops as soon as you **return to the dsh page**, click the icon, or choose “Got it” (no periodic bouncing).
+- **Completion counter on the Dock badge**: each finished task increments a count (`1`, `2`, …) shown on the Dock icon; it resets to zero when you return to the dsh page, click the icon, or choose “Got it”.
 - **Animation master switch**: turn all icon animations off/on from the right-click menu (static icons remain; bouncing and notifications still work). Cost is negligible — it only redraws a 128 px icon while animating.
 - **Automatic API-key injection**: GUI-launched processes do not read `.zshrc`, so the app parses `DEEPSEEK_API_KEY` from `~/.zshenv` / `.zprofile` / `.zshrc` / `.bash_profile` / `.bashrc` / `.profile` and injects it into the `dsh` child process (read-only, never written to disk, never sent anywhere).
 - **Task-state monitoring** by reading `~/.dsh/sessions/*/session.jsonl.zstd`:
@@ -79,6 +80,23 @@ DeepSeek Harness 开关.app   (current version v0.13.0)
   - `turn/start` → **running**
 
 > Completion rule: without an active goal, one finished turn counts as “done”; with an active goal, only the real goal completion notifies you. All recently active sessions are monitored, so parallel sessions are not missed.
+
+## Relation to similar plugins
+
+Several desktop launchers and notifiers already exist for dsh. The difference here is the **form factor**: this is not a dsh plugin but a standalone native macOS Dock app — with dsh not running at all, it still sits in the Dock and a left-click brings the service up and opens the page.
+
+Related projects in the ecosystem (names and descriptions can be checked against the [awesome-dsh-plugin list](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)):
+
+| Related project | Form factor | Difference from this app |
+| --- | --- | --- |
+| `dsh-start` | macOS, CLI + script that builds a Dock-able `DSH.app` | Same macOS start/stop surface, but CLI-first; you build the app yourself |
+| `dsh-launcher` | macOS, menu-bar app + host plugin writing `runtime.json` | Entry point is a **menu-bar menu**; here the entry point is the **Dock icon** itself |
+| `dsh-unread-dot` | macOS, Dock badge and chime | Uses the Web Badging API from inside dsh; this app is a native Dock app with its own badge and icon animation |
+| `dsh-task-watcher-plugin` | Windows, four-state tray icon + task panel | The four-state idea is close, but Windows-tray only and it runs a separate process |
+| `dsh-tray`, `dsh-dock`, `dsh-native-launcher`, `dsh-desktop-windowos` | Windows tray / desktop shells | Different platform |
+| `dsh-clean-desktop-shell` | Windows + macOS desktop shell | Shortcut- and tray-centric; the icon is not the status display |
+
+No other project combines what this app does: **the Dock icon is both the status display and the only entry point** (left-click returns to the page, right-click opens the menu), a left-click starts the service when it is not running, the icon distinguishes `off / idle / running / attention` live, and completion is driven by the **real goal-end event** with a running count on the icon.
 
 ## Usage
 
@@ -89,6 +107,31 @@ DeepSeek Harness 开关.app   (current version v0.13.0)
 5. Clicking the menu-bar icon opens the same menu.
 
 > Allow notification permission on first run to receive “needs confirmation / task done” notifications.
+
+## Optional: the dock-bridge host plugin
+
+This repository also ships a small dsh host plugin, `plugins/dsh-dock-bridge`. With it
+installed, the app no longer has to parse dsh's startup log: the dsh process **publishes
+the port, PID and tokenized URL directly**.
+
+```sh
+# install from a local checkout (point the path at your clone)
+dsh plugin --profile web add /path/to/dsh-dock-launcher/plugins/dsh-dock-bridge
+```
+
+Restart the web profile once afterwards. Notes:
+
+- The plugin writes `~/.config/dsh-dock-launcher/runtime.json` (mode `0600`, because the
+  file holds a live token) and deletes it on shutdown — including the SIGTERM path.
+- The app trusts that file only while the reported PID is alive **and** the port still
+  accepts connections; a crash leftover is ignored and the log fallback takes over.
+- **The app works fine without the plugin**: the fallback parses the tokenized URL out of
+  `~/Library/Logs/dsh-web.log`.
+- The “Environment check…” menu item shows which path is in use.
+
+> The plugin is also this repository's entry for
+> [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin), which
+> requires a host plugin installable via `dsh plugin add` rather than a plain `.app`.
 
 ## Versioning
 
@@ -114,6 +157,7 @@ dsh-dock-launcher/
 ├── src/                    # Swift sources (app, service, monitor, icons, icon drawing)
 ├── resources/              # Localizable.strings for en / zh-Hans / ja / ko
 ├── docs/                   # icon previews + Alipay QR (used by README)
+├── plugins/dsh-dock-bridge/    # optional host plugin: port/PID/tokenized URL (dsh plugin add)
 ├── install.sh              # one-line installer for /Applications
 ├── Info.plist              # bundle metadata (incl. CFBundleLocalizations)
 ├── build.sh / VERSION / BUILD_NO / CHANGELOG.md
