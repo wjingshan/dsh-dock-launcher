@@ -12,12 +12,15 @@ struct MonitoredEvent {
     var goalPhase: String?
     // tool/call 事件的工具名（用于识别「停下来等你选」的交互式工具）
     var toolName: String?
+    // tool/call 与 tool/result 的 callId（用于判断某个交互式提问是否已被处理）
+    var callId: String?
 }
 
 /// 单个会话文件的监测游标
 struct SessionCursor {
     var prevLineCount: Int? = nil   // 上次处理到的行数；nil = 尚未建立基线
     var goalActive = false          // 该会话当前是否存在未完成（活跃）的 goal
+    var pendingQuestionCallId: String?  // 正在等待用户处理的交互式提问（其 tool/result 到达＝已处理）
 }
 
 /// 一次扫描的结果
@@ -94,15 +97,20 @@ enum TaskMonitor {
         var goalOp: String?
         var goalPhase: String?
         var toolName: String?
+        var callId: String?
         if let data = obj["data"] as? [String: Any] {
             if type == "goal/change" {
                 goalOp = data["operation"] as? String
                 goalPhase = (data["goal"] as? [String: Any])?["phase"] as? String
             } else if type == "tool/call" {
                 toolName = data["name"] as? String
+                callId = data["callId"] as? String
+            } else if type == "tool/result" {
+                callId = data["callId"] as? String
             }
         }
-        return MonitoredEvent(seq: seq, type: type, goalOp: goalOp, goalPhase: goalPhase, toolName: toolName)
+        return MonitoredEvent(seq: seq, type: type, goalOp: goalOp, goalPhase: goalPhase,
+                              toolName: toolName, callId: callId)
     }
 
     // MARK: 信号判别
@@ -186,7 +194,16 @@ enum TaskMonitor {
                 result.resumed = true
             case "tool/call":
                 // 交互式提问 / 计划审批：会话在这里停下来等你选，日志里没有专用事件
-                if isQuestionTool(e.toolName) { result.question = true }
+                if isQuestionTool(e.toolName) {
+                    result.question = true
+                    cursor.pendingQuestionCallId = e.callId
+                }
+            case "tool/result":
+                // 该提问的 tool/result 到达 = 你已经在页面上处理完（选了某一项，或直接关掉）
+                if let cid = e.callId, cid == cursor.pendingQuestionCallId {
+                    result.resumed = true
+                    cursor.pendingQuestionCallId = nil
+                }
             default:
                 if isConfirmEvent(e.type) { result.confirm = true }
             }

@@ -249,3 +249,15 @@
 
 ### 0.20.1（patch）
 - **修掉一个让新动画几乎播不出来的冲突**：旧的「焦点在 dsh 网页就停止提醒」规则与「等你选择」的新要求直接矛盾——你回答问题时**必然就在 dsh 页面上**，于是实测中动画只播了 1 秒就被收回（App 日志：`变形动画：开始` → 1 秒后 `停止提醒：焦点回到 dsh 网页` → `变形动画：反向收回`），亮度呼吸循环根本没机会运行。现在该规则**只对「任务完成」保留**；「需确认 / 等你选择」改为只在你真正作出选择（监测到 `approval/decided` 或新一轮 `turn/start`）时才反向收回。
+
+### 0.20.2（patch）
+- **补齐「提问已被处理」的精确信号**：实测发现 `ask_user_question` 的 `tool/result` **是在用户操作时才回来的**（本次实测间隔 13.3 秒：
+
+  ```
+  seq=1045801  time=14:01:30.561  tool/call   ask_user_question
+  seq=1045802  time=14:01:43.837  tool/result                     ← 13.3 秒后用户操作
+  seq=1045804  time=14:01:43.863  step/start                      ← dsh 继续
+  ```
+
+  ）。0.20.1 只认 `approval/decided` 与 `turn/start`，因此**「直接关掉问题」（不点选任何选项）时动画会一直挂着**。现在用 `callId` 精确匹配：记录待处理提问的 callId，其 `tool/result` 到达即视为「你已经处理完这个问题」（不论选了还是关掉）。
+- 验证：三步序列测试 `same_callId → resumed=true` ✅、`other_callId → resumed=false`（不误判）✅、`approval/decided` 与 `turn/start` 仍生效 ✅。
