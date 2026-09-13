@@ -48,3 +48,15 @@
 "env.apikey.missing" = "DEEPSEEK_API_KEY が見つかりません — dsh で「no API key」エラーになります。~/.zshrc に export するか、dsh の Models ページで保存してください。";
 "env.bridge.found" = "dock-bridge プラグインが有効 — ランタイムファイルからトークン付き URL を取得します";
 "env.bridge.absent" = "dock-bridge プラグイン未導入（任意）— dsh の起動ログからトークン付き URL を読み取ります";
+"menu.sound" = "通知サウンド";
+"menu.sound.choose" = "サウンド";
+"menu.sound.repeat" = "繰り返し回数";
+"menu.sound.repeat.times" = "%d 回再生";
+"menu.sound.repeat.untilHover" = "ポインタが Dock に来るまで";
+"menu.sound.preview" = "試聴";
+"menu.sound.auditionOnSelect" = "選択時に試聴する";
+"sound.slot.confirm" = "確認が必要";
+"sound.slot.question" = "選択待ち";
+"sound.slot.complete" = "タスク完了";
+"sound.slot.start" = "サービス起動";
+"sound.slot.stop" = "サービス停止";

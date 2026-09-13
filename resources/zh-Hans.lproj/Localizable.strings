@@ -48,3 +48,15 @@
 "env.apikey.missing" = "未找到 DEEPSEEK_API_KEY —— dsh 发消息会报 \"no API key\"。请在 ~/.zshrc 中 export，或在 dsh 网页的 Models 页保存。";
 "env.bridge.found" = "dock-bridge 插件已生效 —— 直接从它的运行时文件读取带 token 的地址";
 "env.bridge.absent" = "dock-bridge 插件未安装（可选）—— 改为从 dsh 启动日志读取带 token 的地址";
+"menu.sound" = "提示音";
+"menu.sound.choose" = "音效";
+"menu.sound.repeat" = "重复次数";
+"menu.sound.repeat.times" = "响 %d 次";
+"menu.sound.repeat.untilHover" = "直到鼠标移到程序坞";
+"menu.sound.preview" = "试听";
+"menu.sound.auditionOnSelect" = "选择音效时试听";
+"sound.slot.confirm" = "需确认";
+"sound.slot.question" = "等你选择";
+"sound.slot.complete" = "任务完成";
+"sound.slot.start" = "服务启动";
+"sound.slot.stop" = "服务停止";

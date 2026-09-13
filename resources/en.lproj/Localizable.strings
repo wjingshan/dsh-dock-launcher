@@ -48,3 +48,15 @@
 "env.apikey.missing" = "DEEPSEEK_API_KEY not found — dsh will report \"no API key\". Export it in ~/.zshrc or save it on the dsh Models page.";
 "env.bridge.found" = "dock-bridge plugin active — the tokenized URL is read from its runtime file";
 "env.bridge.absent" = "dock-bridge plugin not installed (optional) — the tokenized URL falls back to the dsh startup log";
+"menu.sound" = "Sound alerts";
+"menu.sound.choose" = "Sound";
+"menu.sound.repeat" = "Repeat";
+"menu.sound.repeat.times" = "Play %d×";
+"menu.sound.repeat.untilHover" = "Until the pointer reaches the Dock";
+"menu.sound.preview" = "Preview";
+"menu.sound.auditionOnSelect" = "Preview when selecting a sound";
+"sound.slot.confirm" = "Needs confirmation";
+"sound.slot.question" = "Waiting for your choice";
+"sound.slot.complete" = "Task done";
+"sound.slot.start" = "Service started";
+"sound.slot.stop" = "Service stopped";

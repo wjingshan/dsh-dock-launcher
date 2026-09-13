@@ -48,3 +48,15 @@
 "env.apikey.missing" = "DEEPSEEK_API_KEY가 없습니다 — dsh에서 \"no API key\" 오류가 발생합니다. ~/.zshrc에 export하거나 dsh Models 페이지에서 저장하세요.";
 "env.bridge.found" = "dock-bridge 플러그인 활성 — 런타임 파일에서 토큰 URL을 읽습니다";
 "env.bridge.absent" = "dock-bridge 플러그인 미설치(선택) — dsh 시작 로그에서 토큰 URL을 읽습니다";
+"menu.sound" = "알림음";
+"menu.sound.choose" = "사운드";
+"menu.sound.repeat" = "반복 횟수";
+"menu.sound.repeat.times" = "%d회 재생";
+"menu.sound.repeat.untilHover" = "포인터가 Dock에 올 때까지";
+"menu.sound.preview" = "미리 듣기";
+"menu.sound.auditionOnSelect" = "선택 시 미리 듣기";
+"sound.slot.confirm" = "확인 필요";
+"sound.slot.question" = "선택 대기";
+"sound.slot.complete" = "작업 완료";
+"sound.slot.start" = "서비스 시작";
+"sound.slot.stop" = "서비스 중지";

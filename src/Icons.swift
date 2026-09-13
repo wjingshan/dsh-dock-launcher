@@ -401,3 +401,49 @@ func drawBusyFlowIcon(rect: NSRect, phase: CGFloat, variant: IconVariant = .dark
 
     drawBrandLabelsIfAvailable(capRect: capRect, size: size, variant: variant)
 }
+
+// MARK: 「需要你介入」提醒 —— 右上角圆点脉冲
+
+/// 在任意画布上绘制「圆点脉冲」提醒：正常运行图标 + 右上角圆点（带一层裁剪在底板内的柔和扩散）。
+/// 几何参数经出界量测：圆点留 margin、扩散光裁剪在圆角内，整枚图标不会超出画布。
+/// - Parameter pulse: 脉冲缩放（约 0.86…1.12），由 animBeat() 的双频呼吸驱动
+func drawDotPulseIcon(rect: NSRect, dotColor: NSColor, pulse: CGFloat, variant: IconVariant = .dark) {
+    let size = min(rect.width, rect.height)
+    drawRunningIcon(rect: rect, variant: variant)      // 底板 + 开关胶囊 + 品牌字
+
+    let r = size * 0.120 * pulse
+    let margin = size * 0.035
+    let c = CGPoint(x: rect.maxX - margin - r, y: rect.maxY - margin - r)
+
+    // ① 柔和扩散：多层递减 alpha 的圆，裁剪在底板内，避免溢出画布
+    NSGraphicsContext.saveGraphicsState()
+    squirclePath(in: rect).addClip()
+    let layers = 7
+    for i in 0..<layers {
+        let f = CGFloat(i) / CGFloat(layers - 1)
+        let rr = r * (1.20 + 0.85 * f)
+        dotColor.withAlphaComponent(0.15 * (1 - f) * min(1, pulse)).setFill()
+        NSBezierPath(ovalIn: NSRect(x: c.x - rr, y: c.y - rr, width: rr * 2, height: rr * 2)).fill()
+    }
+    NSGraphicsContext.restoreGraphicsState()
+
+    // ② 圆点本体（带投影，与底板上其它元素保持一致的打光）
+    NSGraphicsContext.saveGraphicsState()
+    let sh = NSShadow()
+    sh.shadowColor = NSColor(calibratedWhite: 0, alpha: 0.50)
+    sh.shadowBlurRadius = r * 0.30
+    sh.shadowOffset = NSSize(width: 0, height: -r * 0.06)
+    sh.set()
+    dotColor.setFill()
+    NSBezierPath(ovalIn: NSRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)).fill()
+    NSGraphicsContext.restoreGraphicsState()
+}
+
+/// 圆点脉冲图（供 Dock tile 的动画视图使用）
+func dockIconDotPulse(dotColor: NSColor, pulse: CGFloat, size: CGFloat = 128,
+                      variant: IconVariant = .dark) -> NSImage {
+    NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
+        drawDotPulseIcon(rect: rect, dotColor: dotColor, pulse: pulse, variant: variant)
+        return true
+    }
+}

@@ -44,6 +44,17 @@ final class BusyFlowView: NSView {
     }
 }
 
+/// Dock「需要你介入」提醒视图：右上角圆点脉冲（需确认 / 等你选择）
+final class DotPulseView: NSView {
+    var dotColor: NSColor = NSColor(calibratedRed: 0.94, green: 0.22, blue: 0.24, alpha: 1)
+    var pulse: CGFloat = 1.0
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        drawDotPulseIcon(rect: NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height),
+                         dotColor: dotColor, pulse: pulse, variant: currentIconVariant())
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     // 状态
     private var displayState: DisplayState = .off
@@ -183,6 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         envItem.target = self
         envItem.image = sfSymbol("stethoscope")
         m.addItem(envItem)
+        m.addItem(buildSoundMenuItem())
         let lg = NSMenuItem(title: L("menu.logs"), action: #selector(openLogAction), keyEquivalent: "")
         lg.target = self; m.addItem(lg)
         m.addItem(.separator())
@@ -206,6 +218,95 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/dsh-launcher.log"))
     }
     @objc private func quitAction() { NSApp.terminate(nil) }
+
+    // MARK: - 提示音设置菜单
+
+    /// 「提示音」子菜单：每一项显示当前音效与重复次数，可改音效、改重复次数、试听
+    private func buildSoundMenuItem() -> NSMenuItem {
+        let root = NSMenuItem(title: L("menu.sound"), action: nil, keyEquivalent: "")
+        root.image = sfSymbol("speaker.wave.2")
+        let sub = NSMenu()
+        let available = Sounds.available()
+
+        for slot in SoundSlot.allCases {
+            let item = NSMenuItem(title: slot.menuSummary, action: nil, keyEquivalent: "")
+            let s = NSMenu()
+
+            // 选择音效
+            let choose = NSMenuItem(title: L("menu.sound.choose"), action: nil, keyEquivalent: "")
+            let cs = NSMenu()
+            for name in available {
+                let it = NSMenuItem(title: name, action: #selector(pickSoundAction(_:)), keyEquivalent: "")
+                it.target = self
+                it.representedObject = ["slot": slot.rawValue, "sound": name]
+                it.state = (name == slot.soundName) ? .on : .off
+                cs.addItem(it)
+            }
+            choose.submenu = cs
+            s.addItem(choose)
+
+            // 重复次数（服务音不重复，故不显示）
+            if slot.supportsRepeat {
+                let rep = NSMenuItem(title: L("menu.sound.repeat"), action: nil, keyEquivalent: "")
+                let rs = NSMenu()
+                for v in [1, 2, 3, 5, SoundSlot.untilHover] {
+                    let it = NSMenuItem(title: Sounds.repeatLabel(v), action: #selector(pickRepeatAction(_:)), keyEquivalent: "")
+                    it.target = self
+                    it.representedObject = ["slot": slot.rawValue, "value": v]
+                    it.state = (v == slot.repeatCount) ? .on : .off
+                    rs.addItem(it)
+                }
+                rep.submenu = rs
+                s.addItem(rep)
+            }
+
+            s.addItem(.separator())
+            let pv = NSMenuItem(title: L("menu.sound.preview"), action: #selector(previewSoundAction(_:)), keyEquivalent: "")
+            pv.target = self
+            pv.representedObject = slot.rawValue
+            s.addItem(pv)
+
+            item.submenu = s
+            sub.addItem(item)
+        }
+
+        sub.addItem(.separator())
+        let aud = NSMenuItem(title: L("menu.sound.auditionOnSelect"),
+                             action: #selector(toggleAuditionAction), keyEquivalent: "")
+        aud.target = self
+        aud.state = SoundCenter.shared.auditionOnSelect ? .on : .off
+        sub.addItem(aud)
+
+        root.submenu = sub
+        return root
+    }
+
+    @objc private func pickSoundAction(_ sender: NSMenuItem) {
+        guard let d = sender.representedObject as? [String: Any],
+              let rawSlot = d["slot"] as? String, let slot = SoundSlot(rawValue: rawSlot),
+              let name = d["sound"] as? String else { return }
+        slot.setSound(name)
+        log("提示音：\(slot.localizedName) → \(name)")
+        if SoundCenter.shared.auditionOnSelect { SoundCenter.shared.preview(slot) }
+    }
+
+    @objc private func pickRepeatAction(_ sender: NSMenuItem) {
+        guard let d = sender.representedObject as? [String: Any],
+              let rawSlot = d["slot"] as? String, let slot = SoundSlot(rawValue: rawSlot),
+              let value = d["value"] as? Int else { return }
+        slot.setRepeat(value)
+        log("提示音重复：\(slot.localizedName) → \(Sounds.repeatLabel(value))")
+    }
+
+    @objc private func previewSoundAction(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let slot = SoundSlot(rawValue: raw) else { return }
+        SoundCenter.shared.preview(slot)
+    }
+
+    @objc private func toggleAuditionAction() {
+        SoundCenter.shared.auditionOnSelect.toggle()
+        log("选择音效时试听：\(SoundCenter.shared.auditionOnSelect ? "开启" : "关闭")")
+    }
 
     /// 环境自检：显示架构/系统/dsh/zstd/API key 的检查结果
     @objc private func envCheckAction() {
@@ -231,6 +332,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let m = NSMenu()
         let running = serviceRunning
+        // 右键点图标 = 鼠标已经在图标上 → 停掉「一直重复」的提示音
+        SoundCenter.shared.stop()
 
         if running {
             let open = NSMenuItem(title: L("menu.openPage"), action: #selector(openWebAction), keyEquivalent: "")
@@ -268,6 +371,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         env.target = self
         env.image = sfSymbol("stethoscope")
         m.addItem(env)
+        m.addItem(buildSoundMenuItem())
         let log = NSMenuItem(title: L("menu.logs"), action: #selector(openLogAction), keyEquivalent: "")
         log.target = self
         log.image = sfSymbol("doc.text")
@@ -314,7 +418,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.async {
                     self.serviceRunning = true
                         self.refreshUI()
-                    self.playSound("Pop")
+                    self.playSound(.serviceStart)
                     if open { self.openBrowser() }
                 }
             } else {
@@ -345,7 +449,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.remindKind = nil
                     self.turnActive = false
                     self.cursors.removeAll()
-                        self.playSound("Funk")
+                        self.playSound(.serviceStop)
                 }
                 self.refreshUI()
             }
@@ -373,14 +477,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         // 大跳阶段：连续几次单次弹跳（informational，可取消、不会一直弹到激活）
+        // 提示音不在这里放：进入提醒时已按配置的重复次数播过（见 beginRemind）
         if bigBouncesLeft > 0 {
             attentionRequestID = NSApp.requestUserAttention(.informationalRequest)
-            // 三种提醒各自的音效：需确认=Purr、等你选择=Ping、完成=Glass
-            switch remindKind {
-            case .confirm: playSound("Purr")
-            case .question: playSound("Ping")
-            default: playSound("Glass")
-            }
             bigBouncesLeft -= 1
             log("大跳剩余 \(bigBouncesLeft)")
         }
@@ -396,25 +495,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             v.needsDisplay = true
             NSApp.dockTile.display()
         } else if displayState == .reminding {
-            guard let v = ensureRemindView() else { return }
-            v.color = Self.remindColor(remindKind)
             let k = CGFloat(t)
-            // 双频呼吸：主呼吸(慢) + 微脉动(快)，让光晕有层次、不死板
+            // 双频呼吸：主呼吸(慢) + 微脉动(快)，让效果有层次、不死板
             let breathe = 0.5 + 0.5 * sin(k * 2.2)
             let shimmer = 0.5 + 0.5 * sin(k * 6.8)
-            v.glow = 0.30 + 0.45 * breathe + 0.25 * shimmer
-            v.capScale = 1.0 + 0.04 * sin(k * 2.2)
-            v.phase = CGFloat(t)          // 边缘白色流光沿边缘环绕
-            v.needsDisplay = true
+            if let kind = remindKind, kind != .complete {
+                // 「需要你介入」→ 右上角圆点脉冲
+                guard let v = ensureDotPulseView() else { return }
+                v.dotColor = Self.remindColor(kind)
+                v.pulse = 0.86 + 0.26 * breathe + 0.06 * shimmer
+                v.needsDisplay = true
+            } else {
+                // 「任务完成」→ 保留原有的边缘呼吸发光 + 白色流光
+                guard let v = ensureRemindView() else { return }
+                v.color = Self.remindColor(remindKind)
+                v.glow = 0.30 + 0.45 * breathe + 0.25 * shimmer
+                v.capScale = 1.0 + 0.04 * sin(k * 2.2)
+                v.phase = CGFloat(t)          // 边缘白色流光沿边缘环绕
+                v.needsDisplay = true
+            }
             NSApp.dockTile.display()
         }
     }
 
-    /// 三种提醒各自的颜色：完成=绿、需确认=橙、等你选择=紫
+    /// 三种提醒各自的颜色：完成=绿、需确认=红、等你选择=红（两者都表示「需要你介入」）
     private static func remindColor(_ kind: RemindKind?) -> NSColor {
         switch kind {
-        case .confirm:  return NSColor(calibratedRed: 1.00, green: 0.55, blue: 0.10, alpha: 1)
-        case .question: return NSColor(calibratedRed: 0.62, green: 0.45, blue: 1.00, alpha: 1)
+        case .confirm:  return NSColor(calibratedRed: 0.94, green: 0.22, blue: 0.24, alpha: 1)
+        case .question: return NSColor(calibratedRed: 0.94, green: 0.22, blue: 0.24, alpha: 1)
         default:        return NSColor(calibratedRed: 0.25, green: 0.90, blue: 0.55, alpha: 1)
         }
     }
@@ -437,8 +545,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .question: postNotification(title: L("notify.question.title"), body: L("notify.question.body"))
         case .complete: postNotification(title: L("notify.complete.title"), body: L("notify.complete.body"))
         }
-        log("进入提醒：\(reason)（先大跳，后安静持续发光，直到你回 dsh 网页）")
+        // 提示音：按该提醒配置的音效与重复次数播放（重复次数可在右键菜单里设）
+        SoundCenter.shared.play(soundSlot(for: kind))
+        log("进入提醒：\(reason)（先大跳，之后持续提醒直到你回 dsh 网页）")
         refreshUI()   // 立即切到提醒态并起动画
+    }
+
+    /// 提醒类型 → 提示音槽位
+    private func soundSlot(for kind: RemindKind) -> SoundSlot {
+        switch kind {
+        case .confirm: return .confirm
+        case .question: return .question
+        case .complete: return .complete
+        }
     }
 
     private func dismissReminding(reason: String) {
@@ -446,6 +565,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         log("停止提醒：\(reason)")
         remindKind = nil
         bigBouncesLeft = 0
+        SoundCenter.shared.stop()                 // 停掉正在重复的提示音
         // 取消尚未播完的 Dock 弹跳，避免“回到页面后仍抽搐”
         if let id = attentionRequestID {
             NSApp.cancelUserAttentionRequest(id)
@@ -460,10 +580,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var remindView: RemindView?
     private var busyView: BusyFlowView?
+    private var dotView: DotPulseView?
 
     private func ensureRemindView() -> RemindView? {
         if remindView == nil {
             busyView = nil
+            dotView = nil
             let v = RemindView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
             NSApp.dockTile.contentView = v
             remindView = v
@@ -471,9 +593,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return remindView
     }
 
+    private func ensureDotPulseView() -> DotPulseView? {
+        if dotView == nil {
+            busyView = nil
+            remindView = nil
+            let v = DotPulseView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
+            NSApp.dockTile.contentView = v
+            dotView = v
+        }
+        return dotView
+    }
+
     private func ensureBusyView() -> BusyFlowView? {
         if busyView == nil {
             remindView = nil
+            dotView = nil
             let v = BusyFlowView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
             NSApp.dockTile.contentView = v
             busyView = v
@@ -483,9 +617,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// 结束提醒/动画：切回静态图标（撤销 contentView，避免 Dock 停留在动画帧）
     private func teardownRemindView() {
-        if remindView != nil || busyView != nil {
+        if remindView != nil || busyView != nil || dotView != nil {
             remindView = nil
             busyView = nil
+            dotView = nil
             NSApp.dockTile.contentView = nil
             NSApp.applicationIconImage = dockIcon(.running, variant: currentIconVariant())   // 立即回到正常静态图标
             NSApp.dockTile.display()                          // 强制 Dock 刷新，杜绝残留动画帧
@@ -602,7 +737,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func requestNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
-    private func playSound(_ n: String) { NSSound(named: NSSound.Name(n))?.play() }
+    /// 播放某个用途的提示音（音效与重复次数由用户在右键菜单里配置）
+    private func playSound(_ slot: SoundSlot) { SoundCenter.shared.play(slot) }
     private func noteError(_ m: String) {
         log("错误：\(m)")
         let a = NSAlert(); a.messageText = L("app.name"); a.informativeText = m; a.alertStyle = .critical; a.addButton(withTitle: L("button.ok")); a.runModal()

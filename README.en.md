@@ -19,9 +19,9 @@ The UI language **follows the system**, with built-in **English / 简体中文 /
 | Off | Running · Idle | Task running | Task done | Needs confirmation | Waiting for your choice |
 |:--:|:--:|:--:|:--:|:--:|:--:|
 | ![off](docs/icon-off.png) | ![running](docs/icon-running.png) | ![busy](docs/icon-busy.png) | ![done](docs/icon-remind-complete.png) | ![confirm](docs/icon-remind-confirm.png) | ![choice](docs/icon-remind-question.gif) |
-| Red · knob left | Green · knob right | Multi-color aurora flow | Inward edge glow + white streamer (green) | Inward edge glow + white streamer (orange) | Inward edge glow + white streamer (purple) |
+| Red · knob left | Green · knob right | Multi-color aurora flow | Inward edge glow + white streamer (green) | Red dot pulse, top-right | Red dot pulse, top-right |
 
-> The last cell is an **animation**: this purple “waiting for your choice” state appears when dsh stops for an option prompt (`ask_user_question`) or plan approval (`exit_plan_mode`), and stays until you return to the page or choose “Got it”.
+> The last cell is an **animation**: this “waiting for your choice” state appears when dsh stops for an option prompt (`ask_user_question`) or plan approval (`exit_plan_mode`), and the red dot keeps pulsing until you return to the page or choose “Got it”. “Needs confirmation” (approvals) uses the same red dot pulse — both mean **you are needed**; the Dock badge (`!` vs `?`) tells the two apart.
 
 The icon uses a **squircle (continuous-corner)** shape and swaps its plate colors automatically for light/dark system appearance:
 
@@ -71,8 +71,9 @@ DeepSeek Harness 开关.app   (current version v0.15.0)
   - `Off` (red, knob left) — service stopped
   - `Running · Idle` (green, knob right)
   - `Task running` — multi-color aurora flow (blue → cyan → green → violet long gradient drifting slowly + a soft light sweep, 60 fps)
-  - `Needs attention` — inward glow from the icon edge + a 2 px white streamer travelling along the edge; green = done, orange = confirmation needed, **purple = waiting for your choice**
-- **Dynamic alerts**: when a task finishes, needs confirmation, or is **waiting for your choice** (option prompts, plan approval), the icon bounces 4 times with a notification and a sound (done = `Glass`, confirmation = `Purr`, choice = `Ping`), then settles into a **quiet continuous glow**; it stops as soon as you **return to the dsh page**, click the icon, or choose “Got it” (no periodic bouncing).
+  - `Needs attention` — **you are needed** (confirmation or a pending choice) = a **red dot pulsing** at the top-right corner (scale + soft spread, 60 fps); **task done** = green inward edge glow + a 2 px white streamer along the edge
+- **Dynamic alerts**: when a task finishes, needs confirmation, or is **waiting for your choice** (option prompts, plan approval), the icon bounces 4 times with a notification and a sound, then settles into a **quiet continuous reminder**; it stops as soon as you **return to the dsh page**, click the icon, or choose “Got it” (no periodic bouncing).
+- **Configurable alert sounds** (right-click menu → “Sound alerts”): five slots (confirmation / choice / task done / service started / service stopped) each show the current sound name, can each use a different sound (system sounds + `~/Library/Sounds`), and can each be **previewed**; the three reminders can also set a **repeat count**: `1` / `2` / `3` / `5`, or **“until the pointer reaches the Dock”** (stops the moment the pointer enters the Dock or menu bar area — no Accessibility permission needed). Settings persist; there is also a “preview when selecting a sound” master switch.
 - **Completion counter on the Dock badge**: each finished task increments a count (`1`, `2`, …) shown on the Dock icon; it resets to zero when you return to the dsh page, click the icon, or choose “Got it”. Confirmation shows `!`, a pending choice shows `?`.
 - **Animation master switch**: turn all icon animations off/on from the right-click menu (static icons remain; bouncing and notifications still work). Cost is negligible — it only redraws a 128 px icon while animating.
 - **Automatic API-key injection**: GUI-launched processes do not read `.zshrc`, so the app parses `DEEPSEEK_API_KEY` from `~/.zshenv` / `.zprofile` / `.zshrc` / `.bash_profile` / `.bashrc` / `.profile` and injects it into the `dsh` child process (read-only, never written to disk, never sent anywhere).
