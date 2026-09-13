@@ -106,7 +106,10 @@ enum TaskMonitor {
                 toolName = data["name"] as? String
                 callId = data["callId"] as? String
             } else if type == "tool/result" {
+                // 注意：提问的结果事件里 callId 嵌套在 data.message.source.callId
+                // （tool/call 才把它放在顶层），两种位置都要读
                 callId = data["callId"] as? String
+                    ?? ((data["message"] as? [String: Any])?["source"] as? [String: Any])?["callId"] as? String
             }
         }
         return MonitoredEvent(seq: seq, type: type, goalOp: goalOp, goalPhase: goalPhase,
