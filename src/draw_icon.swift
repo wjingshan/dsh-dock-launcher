@@ -94,11 +94,12 @@ let pillRadius = pillRect.height / 2
 // 1) 胶囊下方的投影（浮起感）
 ctx.saveGState()
 ctx.setShadow(offset: CGSize(width: 0, height: -70), blur: 100, color: rgb(0, 0, 0, 0.42))
-fillVerticalGradient(pillRect, radius: pillRadius, top: rgb(66, 222, 120), bottom: rgb(16, 163, 71))
+fillVerticalGradient(pillRect, radius: pillRadius, top: rgb(236, 86, 92), bottom: rgb(180, 42, 50))
 ctx.restoreGState()
 
-// 2) 绿色渐变胶囊主体（上亮下暗，有立体感）
-fillVerticalGradient(pillRect, radius: pillRadius, top: rgb(74, 233, 130), bottom: rgb(22, 175, 77))
+// 2) 红色渐变胶囊主体（上亮下暗，有立体感）。
+// 图标默认样子 = 「关闭服务」态：红胶囊 + 白点在左，与运行时 .off 一致。
+fillVerticalGradient(pillRect, radius: pillRadius, top: rgb(247, 92, 98), bottom: rgb(198, 52, 58))
 
 // 3) 胶囊顶部高光层（上半部的半透明白，做出玻璃反光）
 ctx.saveGState()
@@ -116,11 +117,11 @@ ctx.setLineWidth(6)
 ctx.strokePath()
 ctx.restoreGState()
 
-// 5) 白色滑块（带自身投影与垂直渐变）
+// 5) 白色滑块（带自身投影与垂直渐变）—— 默认/关闭态：滑块在**左**
 let knobInset = pillRect.height * 0.12
 let knobDiameter = pillRect.height - knobInset * 2
 let knobRadius = knobDiameter / 2
-let knobCenter = CGPoint(x: pillRect.maxX - knobInset - knobRadius, y: pillRect.midY)
+let knobCenter = CGPoint(x: pillRect.minX + knobInset + knobRadius, y: pillRect.midY)
 let knobRect = CGRect(x: knobCenter.x - knobRadius, y: knobCenter.y - knobRadius, width: knobDiameter, height: knobDiameter)
 
 ctx.saveGState()
