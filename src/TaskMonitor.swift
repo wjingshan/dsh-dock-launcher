@@ -54,13 +54,21 @@ enum TaskMonitor {
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else { return [] }
         let cutoff = Date().addingTimeInterval(-period)
-        var found: [(Date, URL)] = []
+        // 会话日志文件名随 dsh 格式版本演进：`session.jsonl.zstd`（旧）→ `session.v3.jsonl.zstd`（新）。
+        // 曾经硬编码单一文件名，dsh 一换格式所有监测就静默失效（动画/提醒全不出来，
+        // 见 docs/postmortem-2026-09-13-dsh-session-hang.md）。改为匹配 `session*.jsonl.zstd`，
+        // 并对每个会话目录只保留最新一份，避免同一会话的多个格式文件被重复扫描。
+        var latestByDir: [String: (Date, URL)] = [:]
         for case let url as URL in enumerator {
-            guard url.lastPathComponent == "session.jsonl.zstd" else { continue }
+            let name = url.lastPathComponent
+            guard name.hasPrefix("session"), name.hasSuffix(".jsonl.zstd") else { continue }
             let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey])
             guard values?.isRegularFile == true, let date = values?.contentModificationDate, date > cutoff else { continue }
-            found.append((date, url))
+            let dir = url.deletingLastPathComponent().path
+            if let current = latestByDir[dir], current.0 >= date { continue }
+            latestByDir[dir] = (date, url)
         }
+        var found = Array(latestByDir.values)
         found.sort { $0.0 > $1.0 }
         return found.prefix(3).map { $0.1 }      // 只跟最近 3 个会话，控制单次扫描开销
     }
@@ -185,19 +193,33 @@ enum TaskMonitor {
         let n = lines.count
 
         if cursor.prevLineCount == nil {
-            // 首次基线：记录行数；从历史中确定当前是否已有活跃 goal。
-            // 只需要最后一个 goal/change 事件的 operation，倒序找最后一条 goal/change 行。
+            // 首次基线：记录行数；从历史倒序确定当前是否已有活跃 goal / 活跃 turn。
+            // 判定 turn 是必需的：App（或 dsh）重启时若已有回合正在跑，它的 turn/start 落在基线之前，
+            // 不判定就会一直停在「空闲」直到下一个回合 —— 表现为「动画消失」。
             // 注意：JSONSerialization 会把 "/" 转义为 "\/" ，因此两种写法都要匹配。
+            var goalResolved = false
+            var turnResolved = false
+            var turnActive = false
             for line in lines.reversed() {
-                let looksGoal = line.contains("\"goal/change\"") || line.contains("\"goal\\/change\"")
-                guard looksGoal else { continue }
-                guard let e = parseLine(line), e.type == "goal/change" else { continue }
-                if isGoalActivateOp(e.goalOp) { cursor.goalActive = true }
-                else if isGoalCloseOp(e.goalOp) { cursor.goalActive = false }
-                break
+                if !goalResolved, line.contains("goal/change") || line.contains("goal\\/change") {
+                    if let e = parseLine(line), e.type == "goal/change" {
+                        if isGoalActivateOp(e.goalOp) { cursor.goalActive = true }
+                        else if isGoalCloseOp(e.goalOp) { cursor.goalActive = false }
+                        goalResolved = true
+                    }
+                }
+                if !turnResolved, line.contains("turn/start") || line.contains("turn/end") {
+                    if let e = parseLine(line) {
+                        if e.type == "turn/start" { turnActive = true; turnResolved = true }
+                        else if e.type == "turn/end" { turnActive = false; turnResolved = true }
+                    }
+                }
+                if goalResolved, turnResolved { break }
             }
             cursor.prevLineCount = n
-            return ScanResult()
+            var baseline = ScanResult()
+            baseline.busy = turnActive          // 让 tick() 立即进入「处理中」，动画随即恢复
+            return baseline
         }
 
         guard n > cursor.prevLineCount! else { return ScanResult() } // 无新增行

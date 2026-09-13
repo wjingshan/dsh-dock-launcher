@@ -699,7 +699,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let k = url.path
             var c = cursors[k] ?? SessionCursor()
             let initialized = c.prevLineCount != nil
-            if !initialized { _ = TaskMonitor.scan(url: url, cursor: &c); cursors[k] = c; continue }
+            if !initialized {
+                // 首次基线：可能已判定出「有活跃 turn」，必须把 busy 信号带出来，
+                // 否则 App 在 dsh 已运行时启动会一直停在「空闲」（动画不出来，见 postmortem）。
+                let r0 = TaskMonitor.scan(url: url, cursor: &c)
+                cursors[k] = c
+                if r0.busy { busySeen = true }
+                continue
+            }
             let r = TaskMonitor.scan(url: url, cursor: &c)
             cursors[k] = c
             if r.confirm { confirmSeen = true }
