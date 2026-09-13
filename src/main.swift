@@ -99,9 +99,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var promptTimer: Timer?
     private var animTimer: Timer?               // 动画帧定时器（60fps；稳态循环隔帧刷新，等效 30fps）
     private var animFrameTick = 0               // 稳态抽帧计数器
-    /// 稳态循环的抽帧步长：1=60fps、2=30fps、3=20fps（取 60 的约数才能均匀抽帧）。
-    /// busy 色带每秒一个周期且是软渐变、呼吸/脉冲周期 1~3s，抽到 20fps 也看不出台阶。
-    private static let steadyFrameStride = 3
+    /// 稳态循环的抽帧步长：1=60fps、2=30fps、3=20fps、4=15fps（取 60 的约数才能均匀抽帧）。
+    /// busy 色带每秒一个周期且是软渐变、呼吸/脉冲周期 1~3s，抽到 15fps 也看不出台阶。
+    private static let steadyFrameStride = 4
     private var bigBouncesLeft = 0            // 剩几次“大跳”(critical)弹跳
     private var attentionRequestID: Int?      // 最近一次 Dock 弹跳请求 id（用于取消）
 
@@ -474,10 +474,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func animBeat() {
         guard serviceRunning, animationsEnabled else { return }
         let t = Date().timeIntervalSinceReferenceDate
-        // 稳态循环隔帧刷新（60fps → 30fps）：
-        // busy 色带每秒走一个周期、呼吸/脉冲周期 1~3s，每帧位移不足 2px，隔帧肉眼无差别；
+        // 稳态循环抽帧（60fps → 15fps，步长见 steadyFrameStride）：
+        // busy 色带每秒一个周期、呼吸/脉冲周期 1~3s，都是软渐变，抽帧后看不出台阶；
         // 而变形 intro(0.9s) 与反向收尾 outro(0.42s) 是快速过渡，保持满帧以免看出台阶。
-        // 所有相位都用真实时间戳 t 计算，所以跳帧只是采样率减半，动画速度分毫不变。
+        // 所有相位都用真实时间戳 t 计算，所以抽帧只是采样率降低，动画速度分毫不变。
         let inTransition = morphView != nil && (morphPhase == .intro || morphPhase == .outro)
         if !inTransition {
             animFrameTick += 1
