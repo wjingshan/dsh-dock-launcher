@@ -338,23 +338,23 @@ func drawBusyFlowIcon(rect: NSRect, phase: CGFloat, variant: IconVariant = .dark
     let capRect = dockCapsuleRect(center: center, size: size)
 
     // 多色极光：蓝 → 青 → 绿 → 紫（都落在中明度、亮度接近，不发黑/不发白）
-    let auroraBlue   = NSColor(calibratedRed: 0.22, green: 0.52, blue: 1.00, alpha: 1)
-    let auroraCyan   = NSColor(calibratedRed: 0.16, green: 0.72, blue: 0.78, alpha: 1)
-    let auroraGreen  = NSColor(calibratedRed: 0.20, green: 0.68, blue: 0.42, alpha: 1)
-    let auroraViolet = NSColor(calibratedRed: 0.44, green: 0.50, blue: 0.96, alpha: 1)
+    let auroraBlue   = NSColor(calibratedRed: 0.10, green: 0.42, blue: 1.00, alpha: 1)
+    let auroraCyan   = NSColor(calibratedRed: 0.10, green: 0.72, blue: 0.90, alpha: 1)
+    let auroraGreen  = NSColor(calibratedRed: 0.16, green: 0.86, blue: 0.38, alpha: 1)
+    let auroraViolet = NSColor(calibratedRed: 0.24, green: 0.30, blue: 0.98, alpha: 1)
 
     let capPath = NSBezierPath(roundedRect: capRect, xRadius: capRect.height/2, yRadius: capRect.height/2)
     NSGraphicsContext.saveGraphicsState()
     capPath.addClip()
     // 长色带极光：一个颜色循环 = 4×胶囊宽（每段色带 = 一个胶囊宽，色带很长、变化舒缓）；
     // 铺 4 个循环 + 同色收尾，绘制区间按「始终完整覆盖胶囊」对齐，位移按真实周期取模 → 无缝。
-    let cycle = capRect.width * 4
+    let cycle = capRect.width * 1.3
     let seq = [auroraBlue, auroraCyan, auroraGreen, auroraViolet]
     var colors: [NSColor] = []
     for _ in 0..<4 { colors.append(contentsOf: seq) }
     colors.append(auroraBlue)                    // 收尾同色，首尾相接（每段 = 胶囊宽）
-    let span = cycle * 4
-    let shift = (phase * capRect.width * 0.95).truncatingRemainder(dividingBy: cycle)
+    let span = cycle * 3
+    let shift = (phase * capRect.width * 1.3)   // = cycle 倍数 ⇒ 每秒正好 1 个循环，循环衔接无跳变.truncatingRemainder(dividingBy: cycle)
     let grad = NSGradient(colors: colors)!
     // 区间左端始终比胶囊左边缘靠左 (span - 胶囊宽)，保证任何相位下胶囊都被完整覆盖
     let fromX = capRect.minX - (span - capRect.width) + shift
@@ -365,7 +365,7 @@ func drawBusyFlowIcon(rect: NSRect, phase: CGFloat, variant: IconVariant = .dark
     // 柔和极光扫过：一道很宽很淡的白光缓慢掠过（非细亮线）
     let sweepW = capRect.width * 0.42
     let sweepPeriod = capRect.width + sweepW
-    let sweepShift = (phase * capRect.width * 0.45).truncatingRemainder(dividingBy: sweepPeriod)
+    let sweepShift = (phase * sweepPeriod / 2).truncatingRemainder(dividingBy: sweepPeriod)   // 每 2 秒正好掠过 1 次 ⇒ 与 2 秒循环对齐
     let sweepRect = NSRect(x: capRect.minX - sweepW + sweepShift, y: capRect.minY,
                            width: sweepW, height: capRect.height)
     let sweepGrad = NSGradient(colors: [
