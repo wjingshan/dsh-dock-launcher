@@ -638,9 +638,12 @@ func drawAskMorphIcon(rect: NSRect, time: CGFloat, loop: AskMorphLoop = .breathe
     }
 
     // ③b 圆本体：径向渐变（中心纯白 → 边缘极淡冷灰），带投影
+    // 关键：透明度跟随变形进度 ⇒ 正向时从"圆点"淡入、反向时淡出回"圆点"，
+    // 两套绘制（我的圆 vs 图标自带的圆点）交叉淡化，收尾不会跳
     let circleRect = NSRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)
     let circle = NSBezierPath(ovalIn: circleRect)
     NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current?.cgContext.setAlpha(min(1, ease * 2.5))
     let circleShadow = NSShadow()
     circleShadow.shadowColor = NSColor(calibratedWhite: 0, alpha: 0.38)
     circleShadow.shadowBlurRadius = r * 0.16
