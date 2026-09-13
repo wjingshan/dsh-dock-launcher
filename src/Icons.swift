@@ -236,7 +236,11 @@ private func drawInnerEdgeGlow(rect: NSRect, glowC: NSColor, glow: CGFloat) {
     let size = min(rect.width, rect.height)
     let strength = max(0.35, min(1, glow))
     NSGraphicsContext.saveGraphicsState()
-    squirclePath(in: rect).addClip()                    // 只画在图标内部
+    // 裁剪区向内缩 1px。addClip() 会把裁剪路径按像素网格取整，若直接用底板轮廓裁剪，
+    // 沿轮廓描的发光会把底板最外圈那一圈半透明像素覆盖成**不透明** —— 量出来底板就从
+    // 106px 变成 108px（比其它状态大 1px/边），而且光其实溢出了图标轮廓。
+    // 内缩 1px 后，最外圈保持底板自身的抗锯齿，七个状态轮廓严格一致。
+    squirclePath(in: rect.insetBy(dx: 1, dy: 1)).addClip()                    // 只画在图标内部
     let layers = 18
     let maxInset = size * (0.10 + 0.14 * glow)          // 呼吸时向内扩散范围伸缩
     for i in 0..<layers {
@@ -262,7 +266,8 @@ private func drawEdgeStream(rect: NSRect, phase: CGFloat, strength: CGFloat) {
     // 线中心向内缩进 lineW/2，使 2px 线正好贴在边缘内侧
     let insetSize = size - lineW
     NSGraphicsContext.saveGraphicsState()
-    squirclePath(in: rect).addClip()
+    // 同 drawInnerEdgeGlow：内缩 1px，避免 addClip() 的像素取整把底板最外圈压成不透明
+    squirclePath(in: rect.insetBy(dx: 1, dy: 1)).addClip()
     for k in 0..<steps {
         let f0 = CGFloat(k) / CGFloat(steps)
         let f1 = CGFloat(k + 1) / CGFloat(steps)
