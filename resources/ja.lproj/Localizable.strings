@@ -62,3 +62,11 @@
 "sound.slot.stop" = "サービス停止";
 "about.menu" = "%@ について";
 "about.info" = "バージョン %@（build %@）";
+"menu.sound.settings" = "%@の設定…";
+"sound.window.title" = "通知サウンド設定";
+"sound.window.subtitle" = "通知ごとのサウンドと繰り返し回数を設定します。";
+"sound.column.slot" = "通知";
+"sound.column.sound" = "サウンド";
+"sound.column.repeat" = "繰り返し";
+"sound.reset" = "デフォルトに戻す";
+"button.done" = "完了";

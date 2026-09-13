@@ -33,7 +33,7 @@ cp "$TMPWORK/AppIcon.icns" "$BD/AppIcon.icns"
 rm -rf "$TMPWORK"
 
 echo "== [3/4] compile launcher (v$VER build $BUILD_NUM, universal arm64+x86_64) =="
-SRC="src/main.swift src/Icons.swift src/ServiceManager.swift src/TaskMonitor.swift src/Frontmost.swift src/EnvCheck.swift src/SoundSettings.swift src/AboutBox.swift"
+SRC="src/main.swift src/Icons.swift src/ServiceManager.swift src/TaskMonitor.swift src/Frontmost.swift src/EnvCheck.swift src/SoundSettings.swift src/SoundSettingsWindow.swift src/AboutBox.swift"
 swiftc -O -module-cache-path "$BD/modcache" -target arm64-apple-macosx14.0 $SRC -o "$BD/DSHLauncher-arm64"
 swiftc -O -module-cache-path "$BD/modcache" -target x86_64-apple-macosx14.0 $SRC -o "$BD/DSHLauncher-x86_64"
 lipo -create -output "$BD/DSHLauncher" "$BD/DSHLauncher-arm64" "$BD/DSHLauncher-x86_64"

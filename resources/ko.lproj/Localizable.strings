@@ -62,3 +62,11 @@
 "sound.slot.stop" = "서비스 중지";
 "about.menu" = "%@ 정보";
 "about.info" = "버전 %@(build %@)";
+"menu.sound.settings" = "%@ 설정…";
+"sound.window.title" = "알림음 설정";
+"sound.window.subtitle" = "알림별 사운드와 반복 횟수를 선택하세요.";
+"sound.column.slot" = "알림";
+"sound.column.sound" = "사운드";
+"sound.column.repeat" = "반복";
+"sound.reset" = "기본값 복원";
+"button.done" = "완료";

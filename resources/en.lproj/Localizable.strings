@@ -62,3 +62,11 @@
 "sound.slot.stop" = "Service stopped";
 "about.menu" = "About %@";
 "about.info" = "Version %@ (build %@)";
+"menu.sound.settings" = "%@ Settings…";
+"sound.window.title" = "Alert Sounds";
+"sound.window.subtitle" = "Pick the sound each alert plays, and how often it repeats.";
+"sound.column.slot" = "Alert";
+"sound.column.sound" = "Sound";
+"sound.column.repeat" = "Repeat";
+"sound.reset" = "Restore Defaults";
+"button.done" = "Done";

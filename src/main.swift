@@ -194,7 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         envItem.target = self
         envItem.image = sfSymbol("stethoscope")
         m.addItem(envItem)
-        m.addItem(buildSoundMenuItem())
+        m.addItem(soundSettingsMenuItem())
         let lg = NSMenuItem(title: L("menu.logs"), action: #selector(openLogAction), keyEquivalent: "")
         lg.target = self; m.addItem(lg)
         m.addItem(.separator())
@@ -220,93 +220,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc private func quitAction() { NSApp.terminate(nil) }
 
-    // MARK: - 提示音设置菜单
+    // MARK: - 提示音设置
 
-    /// 「提示音」子菜单：每一项显示当前音效与重复次数，可改音效、改重复次数、试听
-    private func buildSoundMenuItem() -> NSMenuItem {
-        let root = NSMenuItem(title: L("menu.sound"), action: nil, keyEquivalent: "")
-        root.image = sfSymbol("speaker.wave.2")
-        let sub = NSMenu()
-        let available = Sounds.available()
-
-        for slot in SoundSlot.allCases {
-            let item = NSMenuItem(title: slot.menuSummary, action: nil, keyEquivalent: "")
-            let s = NSMenu()
-
-            // 选择音效
-            let choose = NSMenuItem(title: L("menu.sound.choose"), action: nil, keyEquivalent: "")
-            let cs = NSMenu()
-            for name in available {
-                let it = NSMenuItem(title: name, action: #selector(pickSoundAction(_:)), keyEquivalent: "")
-                it.target = self
-                it.representedObject = ["slot": slot.rawValue, "sound": name]
-                it.state = (name == slot.soundName) ? .on : .off
-                cs.addItem(it)
-            }
-            choose.submenu = cs
-            s.addItem(choose)
-
-            // 重复次数（服务音不重复，故不显示）
-            if slot.supportsRepeat {
-                let rep = NSMenuItem(title: L("menu.sound.repeat"), action: nil, keyEquivalent: "")
-                let rs = NSMenu()
-                for v in [1, 2, 3, 5, SoundSlot.untilHover] {
-                    let it = NSMenuItem(title: Sounds.repeatLabel(v), action: #selector(pickRepeatAction(_:)), keyEquivalent: "")
-                    it.target = self
-                    it.representedObject = ["slot": slot.rawValue, "value": v]
-                    it.state = (v == slot.repeatCount) ? .on : .off
-                    rs.addItem(it)
-                }
-                rep.submenu = rs
-                s.addItem(rep)
-            }
-
-            s.addItem(.separator())
-            let pv = NSMenuItem(title: L("menu.sound.preview"), action: #selector(previewSoundAction(_:)), keyEquivalent: "")
-            pv.target = self
-            pv.representedObject = slot.rawValue
-            s.addItem(pv)
-
-            item.submenu = s
-            sub.addItem(item)
-        }
-
-        sub.addItem(.separator())
-        let aud = NSMenuItem(title: L("menu.sound.auditionOnSelect"),
-                             action: #selector(toggleAuditionAction), keyEquivalent: "")
-        aud.target = self
-        aud.state = SoundCenter.shared.auditionOnSelect ? .on : .off
-        sub.addItem(aud)
-
-        root.submenu = sub
-        return root
+    /// 打开「提示音设置」独立窗口（替代原先的多级子菜单）
+    private func soundSettingsMenuItem() -> NSMenuItem {
+        let it = NSMenuItem(title: String(format: L("menu.sound.settings"), L("menu.sound")),
+                            action: #selector(openSoundSettingsAction), keyEquivalent: "")
+        it.target = self
+        it.image = sfSymbol("speaker.wave.2")
+        return it
     }
 
-    @objc private func pickSoundAction(_ sender: NSMenuItem) {
-        guard let d = sender.representedObject as? [String: Any],
-              let rawSlot = d["slot"] as? String, let slot = SoundSlot(rawValue: rawSlot),
-              let name = d["sound"] as? String else { return }
-        slot.setSound(name)
-        log("提示音：\(slot.localizedName) → \(name)")
-        if SoundCenter.shared.auditionOnSelect { SoundCenter.shared.preview(slot) }
-    }
-
-    @objc private func pickRepeatAction(_ sender: NSMenuItem) {
-        guard let d = sender.representedObject as? [String: Any],
-              let rawSlot = d["slot"] as? String, let slot = SoundSlot(rawValue: rawSlot),
-              let value = d["value"] as? Int else { return }
-        slot.setRepeat(value)
-        log("提示音重复：\(slot.localizedName) → \(Sounds.repeatLabel(value))")
-    }
-
-    @objc private func previewSoundAction(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String, let slot = SoundSlot(rawValue: raw) else { return }
-        SoundCenter.shared.preview(slot)
-    }
-
-    @objc private func toggleAuditionAction() {
-        SoundCenter.shared.auditionOnSelect.toggle()
-        log("选择音效时试听：\(SoundCenter.shared.auditionOnSelect ? "开启" : "关闭")")
+    @objc private func openSoundSettingsAction() {
+        SoundCenter.shared.stop()          // 打开设置时先停掉正在重复的提示音
+        SoundSettingsWindow.shared.show()
     }
 
     // MARK: - 关于
@@ -391,7 +318,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         env.target = self
         env.image = sfSymbol("stethoscope")
         m.addItem(env)
-        m.addItem(buildSoundMenuItem())
+        m.addItem(soundSettingsMenuItem())
         let log = NSMenuItem(title: L("menu.logs"), action: #selector(openLogAction), keyEquivalent: "")
         log.target = self
         log.image = sfSymbol("doc.text")

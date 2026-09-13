@@ -62,3 +62,11 @@
 "sound.slot.stop" = "服务停止";
 "about.menu" = "关于 %@";
 "about.info" = "版本 %@（build %@）";
+"menu.sound.settings" = "%@设置…";
+"sound.window.title" = "提示音设置";
+"sound.window.subtitle" = "选择每种提醒使用的声音，以及重复播放的次数。";
+"sound.column.slot" = "提醒";
+"sound.column.sound" = "声音";
+"sound.column.repeat" = "重复";
+"sound.reset" = "恢复默认";
+"button.done" = "完成";
