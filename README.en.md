@@ -16,15 +16,14 @@ The icon always reflects service & task state, and animates when a task **finish
 
 The UI language **follows the system**, with built-in **English / 简体中文 / 日本語 / 한국어** (you can also set it per-app in System Settings → General → Language & Region → Applications).
 
-| Off | Running · Idle | Task running | Task done | Needs confirmation | Waiting · single choice | Waiting · multi-select |
-|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| ![off](docs/icon-off.png) | ![running](docs/icon-running.png) | ![busy](docs/icon-busy.gif) | ![done](docs/icon-remind-complete.gif) | ![confirm](docs/icon-remind-confirm.gif) | ![choice](docs/icon-remind-question.gif) | ![multi](docs/icon-remind-multi.gif) |
-| Red · knob left | Green · knob right | Multi-color aurora flow | Inward edge glow + white streamer (green) | Question-mark morph | Question-mark morph | Check-mark fade-overlap |
+| Off | Running · Idle | Task running | Task done | Needs confirmation / single choice | Waiting · multi-select |
+|:--:|:--:|:--:|:--:|:--:|:--:|
+| ![off](docs/icon-off.png) | ![running](docs/icon-running.png) | ![busy](docs/icon-busy.gif) | ![done](docs/icon-remind-complete.gif) | ![confirm / single choice](docs/icon-remind-question.gif) | ![multi](docs/icon-remind-multi.gif) |
+| Red · knob left | Green · knob right | Multi-color aurora flow | Inward edge glow + white streamer (green) | Question-mark morph | Check-mark fade-overlap |
 
 > Four of the cells above are **animations**. When dsh stops for an option prompt (`ask_user_question`) or plan approval (`exit_plan_mode`), **DeepSeek and HARNESS move apart, the switch's white knob grows into a large rounded square, and a blue symbol appears inside it**. It then keeps looping **until you actually make your choice in the dsh page and dsh continues**, at which point a **reverse animation** folds it back into the switch:
-> - **Single choice / plain question**: a blue **question mark**, looping a soft brightness breath.
+> - **Needs confirmation (approval) / single choice / plain question**: a blue **question mark**, looping a soft brightness breath. These cases **share one and the same animation** (hence the single column above); inside the app they differ only in **alert sound and notification text**.
 > - **Multi-select**: a blue **check mark**, looping a fade-overlap - it is drawn from the start, then dissolves from the start, and a new stroke begins while the old one is still fading out (two strokes overlap in time).
-> - **Needs confirmation** (approvals) plays the same question-mark animation; they differ only in alert sound and notification text.
 
 The icon uses a **squircle (continuous-corner)** shape and swaps its plate colors automatically for light/dark system appearance:
 
