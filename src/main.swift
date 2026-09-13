@@ -19,6 +19,14 @@ enum DisplayState: Equatable {
 
 enum RemindKind { case complete, confirm, question }
 
+/// Dock 动画内容区：每边内缩 8.4%，与 macOS 施加在 app 图标上的边距一致。
+/// 动画走 `dockTile.contentView`，系统**不会**替我们加这个边距 —— 实测系统对
+/// `.icns` / applicationIconImage 的内容占比是 83.2%，而 contentView 原始就是 100%，
+/// 不内缩就会比静态图标和其他 App 的 Dock 图标明显偏大。
+private func dockAnimRect(_ bounds: NSRect) -> NSRect {
+    bounds.insetBy(dx: bounds.width * 0.084, dy: bounds.height * 0.084)
+}
+
 /// Dock 提醒动画视图：作为 NSDockTile.contentView，胶囊按呼吸缩放 + 霓虹光晕
 final class RemindView: NSView {
     var color: NSColor = NSColor(calibratedRed: 0.25, green: 0.90, blue: 0.55, alpha: 1)
@@ -28,7 +36,7 @@ final class RemindView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        drawPulseIcon(rect: NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height),
+        drawPulseIcon(rect: dockAnimRect(bounds),
                       glowC: color, glow: glow, capScale: capScale,
                       variant: currentIconVariant(), phase: phase)
     }
@@ -39,7 +47,7 @@ final class BusyFlowView: NSView {
     var phase: CGFloat = 0
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        drawBusyFlowIcon(rect: NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height),
+        drawBusyFlowIcon(rect: dockAnimRect(bounds),
                          phase: phase, variant: currentIconVariant())
     }
 }
@@ -51,7 +59,7 @@ final class AskMorphView: NSView {
     var loop: AskMorphLoop = .brightness
     var symbol: AskSymbol = .question        // 普通提问=问号；多选问题=对勾
     override func draw(_ dirtyRect: NSRect) {
-        drawAskMorphIcon(rect: NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height),
+        drawAskMorphIcon(rect: dockAnimRect(bounds),
                          time: time, loop: loop, variant: currentIconVariant(), reverse: reverse,
                          symbol: symbol)
     }
@@ -63,7 +71,7 @@ final class DotPulseView: NSView {
     var pulse: CGFloat = 1.0
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        drawDotPulseIcon(rect: NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height),
+        drawDotPulseIcon(rect: dockAnimRect(bounds),
                          dotColor: dotColor, pulse: pulse, variant: currentIconVariant())
     }
 }
