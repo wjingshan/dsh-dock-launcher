@@ -108,7 +108,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // UI
     private var statusItem: NSStatusItem!
     private var envFindings: [EnvFinding] = []
-    private var completedCount = 0        // 累计完成数（显示在 Dock 徽标，回到页面后清零）
 
     // MARK: 生命周期
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -553,14 +552,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         remindKind = kind
         bigBouncesLeft = 4            // 先来 4 次大跳
         displayState = .reminding
-        if kind == .confirm {
-            NSApp.dockTile.badgeLabel = "!"
-        } else if kind == .question {
-            NSApp.dockTile.badgeLabel = "?"
-        } else {
-            completedCount += 1                                  // 完成次数累加
-            NSApp.dockTile.badgeLabel = "\(completedCount)"      // 徽标显示完成数量（如 3）
-        }
         switch kind {
         case .confirm: postNotification(title: L("notify.confirm.title"), body: L("notify.confirm.body"))
         case .question: postNotification(title: L("notify.question.title"), body: L("notify.question.body"))
@@ -601,7 +592,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.cancelUserAttentionRequest(id)
             attentionRequestID = nil
         }
-        NSApp.dockTile.badgeLabel = nil
+        NSApp.dockTile.badgeLabel = nil   // 确保不显示任何系统角标
         if morphView != nil, morphPhase != .outro, animationsEnabled {
             // 反向动画：问号收回成开关，播完再拆（见 animBeat）
             morphPhase = .outro

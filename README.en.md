@@ -19,12 +19,12 @@ The UI language **follows the system**, with built-in **English / 简体中文 /
 | Off | Running · Idle | Task running | Task done | Needs confirmation | Waiting · single choice | Waiting · multi-select |
 |:--:|:--:|:--:|:--:|:--:|:--:|:--:|
 | ![off](docs/icon-off.png) | ![running](docs/icon-running.png) | ![busy](docs/icon-busy.gif) | ![done](docs/icon-remind-complete.gif) | ![confirm](docs/icon-remind-confirm.gif) | ![choice](docs/icon-remind-question.gif) | ![multi](docs/icon-remind-multi.gif) |
-| Red · knob left | Green · knob right | Multi-color aurora flow | Inward edge glow + white streamer (green) | Question-mark morph (badge `!`) | Question-mark morph (badge `?`) | Check-mark fade-overlap (badge `?`) |
+| Red · knob left | Green · knob right | Multi-color aurora flow | Inward edge glow + white streamer (green) | Question-mark morph | Question-mark morph | Check-mark fade-overlap |
 
 > Four of the cells above are **animations**. When dsh stops for an option prompt (`ask_user_question`) or plan approval (`exit_plan_mode`), **DeepSeek and HARNESS move apart, the switch's white knob grows into a large rounded square, and a blue symbol appears inside it**. It then keeps looping **until you actually make your choice in the dsh page and dsh continues**, at which point a **reverse animation** folds it back into the switch:
 > - **Single choice / plain question**: a blue **question mark**, looping a soft brightness breath.
 > - **Multi-select**: a blue **check mark**, looping a fade-overlap - it is drawn from the start, then dissolves from the start, and a new stroke begins while the old one is still fading out (two strokes overlap in time).
-> - **Needs confirmation** (approvals) plays the same question-mark animation; the Dock badge (`!` vs `?`) tells them apart.
+> - **Needs confirmation** (approvals) plays the same question-mark animation; they differ only in alert sound and notification text.
 
 The icon uses a **squircle (continuous-corner)** shape and swaps its plate colors automatically for light/dark system appearance:
 
@@ -74,10 +74,9 @@ DeepSeek Harness 开关.app   (current version v0.15.0)
   - `Off` (red, knob left) — service stopped
   - `Running · Idle` (green, knob right)
   - `Task running` — multi-color aurora flow (blue → cyan → green → violet long gradient drifting slowly + a soft light sweep, 60 fps)
-  - `Needs attention` — **you are needed** (confirmation or a pending choice) = a **red dot pulsing** at the top-right corner (scale + soft spread, 60 fps); **task done** = green inward edge glow + a 2 px white streamer along the edge
-- **Dynamic alerts**: confirmation and **waiting for your choice** play the **question-mark morph** (0.5 s morph → brightness breathing that loops until you decide → a 0.42 s reverse animation folding back into the switch), together with a bounce, a notification and a sound; task completion still uses the green edge glow. Clicking the icon, choosing “Got it”, or moving the pointer onto the Dock also folds it back immediately.
+  - `Needs attention` — **you are needed** (confirmation or a pending choice) = the morph animation (question mark / check mark, see below); **task done** = green inward edge glow + a 2 px white streamer along the edge
+- **Dynamic alerts**: confirmation and **waiting for your choice** play a **morph animation** (0.9 s morph → looping once settled → a 0.42 s reverse animation folding back into the switch), together with a bounce, a notification and a sound - a blue **question mark** for single choice / plain questions (brightness breathing), a blue **check mark** for multi-select (fade-overlap: drawn, then dissolved from the start, rewritten while the tail is still fading); task completion still uses the green edge glow. Clicking the icon, choosing “Got it”, or moving the pointer onto the Dock also folds it back immediately.
 - **Configurable alert sounds** (right-click menu → “Sound Settings…” opens a **dedicated window**): one aligned row per alert — confirmation / choice / task done / service started / service stopped — each with a sound popup (system sounds + `~/Library/Sounds`) and a preview button; the three reminders also get a **repeat count**: `1` / `2` / `3` / `5`, or **“until the pointer reaches the Dock”** (stops the moment the pointer enters the Dock or menu bar area — no Accessibility permission needed). The bottom row holds a “preview when selecting a sound” switch and “Restore Defaults”; settings persist.
-- **Completion counter on the Dock badge**: each finished task increments a count (`1`, `2`, …) shown on the Dock icon; it resets to zero when you return to the dsh page, click the icon, or choose “Got it”. Confirmation shows `!`, a pending choice shows `?`.
 - **About**: the right-click menu's “About …” shows the app name, version (with build number), the GitHub URL and the sponsor link, each openable from a button in the dialog.
 - **Animation master switch**: turn all icon animations off/on from the right-click menu (static icons remain; bouncing and notifications still work). Cost is negligible — it only redraws a 128 px icon while animating.
 - **Automatic API-key injection**: GUI-launched processes do not read `.zshrc`, so the app parses `DEEPSEEK_API_KEY` from `~/.zshenv` / `.zprofile` / `.zshrc` / `.bash_profile` / `.bashrc` / `.profile` and injects it into the `dsh` child process (read-only, never written to disk, never sent anywhere).
@@ -99,7 +98,7 @@ Related projects in the ecosystem (names and descriptions can be checked against
 | --- | --- | --- |
 | `dsh-start` | macOS, CLI + script that builds a Dock-able `DSH.app` | Same macOS start/stop surface, but CLI-first; you build the app yourself |
 | `dsh-launcher` | macOS, menu-bar app + host plugin writing `runtime.json` | Entry point is a **menu-bar menu**; here the entry point is the **Dock icon** itself |
-| `dsh-unread-dot` | macOS, Dock badge and chime | Uses the Web Badging API from inside dsh; this app is a native Dock app with its own badge and icon animation |
+| `dsh-unread-dot` | macOS, Dock badge and chime | Uses the Web Badging API from inside dsh; this app is a native Dock app with its own icon animation |
 | `dsh-task-watcher-plugin` | Windows, four-state tray icon + task panel | The four-state idea is close, but Windows-tray only and it runs a separate process |
 | `dsh-tray`, `dsh-dock`, `dsh-native-launcher`, `dsh-desktop-windowos` | Windows tray / desktop shells | Different platform |
 | `dsh-clean-desktop-shell` | Windows + macOS desktop shell | Shortcut- and tray-centric; the icon is not the status display |
