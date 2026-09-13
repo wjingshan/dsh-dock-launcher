@@ -193,3 +193,4 @@
 - README（中文 / English）新增「与同类插件的关系 / Relation to similar plugins」章节，对照生态内同类启动器与提醒插件的形态差异。
 - **新增宿主插件 `plugins/dsh-dock-bridge`**（声明 `dsh.bundle`，可用 `dsh plugin --profile web add` 安装）：由 dsh 进程直接提供 **端口 / PID / 带 token 的地址**，写入 `~/.config/dsh-dock-launcher/runtime.json`（权限 `0600`），退出时删除（含 SIGTERM 路径，靠 `process.on('exit')` 兜底）。App 优先读它、未装插件则回退读启动日志，并且只在上报 PID 仍存活、端口仍可连时才采信——崩溃残留的文件会被自动忽略。
 - **环境自检新增一条**：显示当前取地址走的是「插件运行时文件」还是「启动日志」。
+- **修复一键安装失效（patch 级）**：`install.sh` 原先只匹配 `macOS-arm64.zip`，而 v0.14.0 起发布资产名为 `macOS-universal.zip`，导致 `latest` 解析不到安装包；现优先取 universal 资产、并保留 arm64 回退（两条分支均已对真实 Release 实测）。

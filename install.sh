@@ -9,7 +9,13 @@ DEST="/Applications/$APP"
 
 echo "==> 查询最新版本…"
 API="https://api.github.com/repos/$REPO/releases/latest"
-ZIP_URL=$(curl -fsSL "$API" | grep '"browser_download_url"' | grep -o 'https://[^"]*macOS-arm64\.zip' | head -1 || true)
+# 资产名随版本演进：v0.14.0 起为 macOS-universal.zip，更早为 macOS-arm64.zip；
+# 优先取通用二进制，取不到再回退到 arm64，避免新版本一键安装失效。
+ASSETS=$(curl -fsSL "$API" | grep '"browser_download_url"' || true)
+ZIP_URL=$(printf '%s\n' "$ASSETS" | grep -o 'https://[^"]*macOS-universal\.zip' | head -1 || true)
+if [ -z "${ZIP_URL:-}" ]; then
+  ZIP_URL=$(printf '%s\n' "$ASSETS" | grep -o 'https://[^"]*macOS-arm64\.zip' | head -1 || true)
+fi
 if [ -z "${ZIP_URL:-}" ]; then
   echo "✗ 未能取到安装包地址（网络或仓库问题）。可手动前往："
   echo "  https://github.com/$REPO/releases/latest"
