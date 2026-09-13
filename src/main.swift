@@ -441,8 +441,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func promptBeat() {
         guard serviceRunning, displayState == .reminding else { return }
-        // 提醒中：每 0.5s 探测一次是否已回到 dsh 网页
-        if Frontmost.looksBackAtDSH() {
+        // 「任务完成」：你已经回到 dsh 网页看到结果了 → 停止提醒。
+        // 「需确认 / 等你选择」**不因焦点回到网页而停止**——你回答问题时必然就在页面上，
+        // 若在这里停止，变形动画的循环就永远播不出来；这两态改为等你真正作出选择
+        // （监测到 approval/decided 或新一轮 turn/start）才反向收回。
+        if remindKind == .complete, Frontmost.looksBackAtDSH() {
             dismissReminding(reason: "焦点回到 dsh 网页")
             return
         }
@@ -703,7 +706,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             var userBack = false
             if confirmSeen || questionSeen || completeSeen { userBack = Frontmost.looksBackAtDSH() }
             // 若此前已提醒过且用户刚回来 → 直接消停
-            if (self.remindKind != nil) && userBack { self.dismissReminding(reason: "检测到回网页") }
+            if self.remindKind == .complete, userBack { self.dismissReminding(reason: "检测到回网页") }
             if completeSeen { self.turnActive = false }   // 回合结束，退出“进行中”
             if busySeen { self.turnActive = true }        // 新回合开始 → 进入“进行中”
             // 你已在 dsh 页面作出选择、dsh 继续运算 → 播放反向动画收回到开关
