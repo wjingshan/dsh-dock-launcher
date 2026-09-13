@@ -12,14 +12,16 @@
 
 A small **always-on** macOS app (Apple Silicon / M4) whose Dock icon is a **toggle switch**.
 **Left-click** the Dock icon = start / return to the DeepSeek Harness (`dsh`) web UI; **right-click** = action menu (stop service, animation toggle, …).
-The icon always reflects service & task state, and animates when a task **finishes** or **needs your confirmation**.
+The icon always reflects service & task state, and animates when a task **finishes**, **needs your confirmation**, or is **waiting for your choice**.
 
 The UI language **follows the system**, with built-in **English / 简体中文 / 日本語 / 한국어** (you can also set it per-app in System Settings → General → Language & Region → Applications).
 
-| Off | Running · Idle | Task running | Task done | Needs confirmation |
-|:--:|:--:|:--:|:--:|:--:|
-| ![off](docs/icon-off.png) | ![running](docs/icon-running.png) | ![busy](docs/icon-busy.png) | ![done](docs/icon-remind-complete.png) | ![confirm](docs/icon-remind-confirm.png) |
-| Red · knob left | Green · knob right | Multi-color aurora flow | Inward edge glow + white streamer | Inward edge glow + white streamer |
+| Off | Running · Idle | Task running | Task done | Needs confirmation | Waiting for your choice |
+|:--:|:--:|:--:|:--:|:--:|:--:|
+| ![off](docs/icon-off.png) | ![running](docs/icon-running.png) | ![busy](docs/icon-busy.png) | ![done](docs/icon-remind-complete.png) | ![confirm](docs/icon-remind-confirm.png) | ![choice](docs/icon-remind-question.gif) |
+| Red · knob left | Green · knob right | Multi-color aurora flow | Inward edge glow + white streamer (green) | Inward edge glow + white streamer (orange) | Inward edge glow + white streamer (purple) |
+
+> The last cell is an **animation**: this purple “waiting for your choice” state appears when dsh stops for an option prompt (`ask_user_question`) or plan approval (`exit_plan_mode`), and stays until you return to the page or choose “Got it”.
 
 The icon uses a **squircle (continuous-corner)** shape and swaps its plate colors automatically for light/dark system appearance:
 
