@@ -200,6 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         m.addItem(.separator())
         let v = NSMenuItem(title: String(format: L("menu.version"), appVersion), action: nil, keyEquivalent: "")
         v.isEnabled = false; m.addItem(v)
+        m.addItem(aboutMenuItem())
         let q = NSMenuItem(title: L("menu.quit"), action: #selector(quitAction), keyEquivalent: "q")
         q.target = self; m.addItem(q)
         return m
@@ -308,6 +309,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         log("选择音效时试听：\(SoundCenter.shared.auditionOnSelect ? "开启" : "关闭")")
     }
 
+    // MARK: - 关于
+
+    private static let repoURL = "https://github.com/wjingshan/dsh-dock-launcher"
+    private static let sponsorURL = "https://github.com/wjingshan/dsh-dock-launcher#-赞助"
+
+    private func aboutMenuItem() -> NSMenuItem {
+        let it = NSMenuItem(title: String(format: L("about.menu"), L("app.name")),
+                            action: #selector(aboutAction), keyEquivalent: "")
+        it.target = self
+        it.image = sfSymbol("info.circle")
+        return it
+    }
+
+    /// 关于：软件名称 / 版本号 / GitHub 地址 / 赞助链接（两个可直接点开）
+    @objc private func aboutAction() {
+        let build = (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "-"
+        let a = NSAlert()
+        a.messageText = L("app.name")
+        a.informativeText = String(format: L("about.info"), appVersion, build,
+                                   Self.repoURL, Self.sponsorURL)
+        a.icon = NSApp.applicationIconImage
+        a.addButton(withTitle: L("button.ok"))          // 默认按钮（回车＝关闭）
+        a.addButton(withTitle: L("about.github"))
+        a.addButton(withTitle: L("about.sponsor"))
+        switch a.runModal() {
+        case .alertSecondButtonReturn:
+            if let u = URL(string: Self.repoURL) { NSWorkspace.shared.open(u) }
+        case .alertThirdButtonReturn:
+            if let u = URL(string: Self.sponsorURL) { NSWorkspace.shared.open(u) }
+        default:
+            break
+        }
+    }
+
     /// 环境自检：显示架构/系统/dsh/zstd/API key 的检查结果
     @objc private func envCheckAction() {
         let findings = EnvCheck.run()
@@ -376,6 +411,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         log.target = self
         log.image = sfSymbol("doc.text")
         m.addItem(log)
+
+        m.addItem(NSMenuItem.separator())
+        m.addItem(aboutMenuItem())
+        m.addItem(NSMenuItem.separator())
 
         let quit = NSMenuItem(title: L("menu.quit"), action: #selector(quitAction), keyEquivalent: "q")
         quit.image = sfSymbol("power")

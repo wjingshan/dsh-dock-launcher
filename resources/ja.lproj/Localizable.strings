@@ -60,3 +60,7 @@
 "sound.slot.complete" = "タスク完了";
 "sound.slot.start" = "サービス起動";
 "sound.slot.stop" = "サービス停止";
+"about.menu" = "%@ について";
+"about.info" = "バージョン %@（build %@）\n\nGitHub：%@\nスポンサー：%@";
+"about.github" = "GitHub を開く";
+"about.sponsor" = "スポンサー";

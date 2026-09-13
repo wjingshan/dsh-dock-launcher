@@ -60,3 +60,7 @@
 "sound.slot.complete" = "작업 완료";
 "sound.slot.start" = "서비스 시작";
 "sound.slot.stop" = "서비스 중지";
+"about.menu" = "%@ 정보";
+"about.info" = "버전 %@(build %@)\n\nGitHub: %@\n후원: %@";
+"about.github" = "GitHub 열기";
+"about.sponsor" = "후원하기";
