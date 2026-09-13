@@ -495,7 +495,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     let el = t - morphPhaseStart
                     v.reverse = false
                     v.time = CGFloat(min(el, AskMorph.intro))
-                    if el >= AskMorph.intro { morphPhase = .looping; morphPhaseStart = t }
+                    if el >= AskMorph.intro {
+                        morphPhase = .looping
+                        morphPhaseStart = t
+                        bigBouncesLeft = 4                 // 变形播完再开始大跳
+                        log("变形动画：变形完成（耗时 \(String(format: "%.2f", el))s），进入亮度呼吸循环")
+                    }
                 case .looping:
                     v.reverse = false
                     v.time = AskMorph.intro + CGFloat(t - morphPhaseStart)   // 一直循环
@@ -556,8 +561,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if kind != .complete, animationsEnabled {
             morphPhase = .intro
             morphPhaseStart = Date().timeIntervalSinceReferenceDate
+            bigBouncesLeft = 0                 // 变形期间先不弹跳，避免程序坞整体跳动掩盖变形
             _ = ensureAskMorphView()
-            log("变形动画：开始（0.5s 变形后进入亮度呼吸循环）")
+            log("变形动画：开始（0.85s 变形后进入亮度呼吸循环，随后开始大跳）")
         }
         // 提示音：按该提醒配置的音效与重复次数播放（重复次数可在右键菜单里设）
         SoundCenter.shared.play(soundSlot(for: kind))

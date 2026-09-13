@@ -453,7 +453,7 @@ func dockIconDotPulse(dotColor: NSColor, pulse: CGFloat, size: CGFloat = 128,
 
 /// 时间轴与几何参数（改这里即可微调节奏与比例）
 enum AskMorph {
-    static let intro: CGFloat = 0.5            // 开场变形时长（秒）
+    static let intro: CGFloat = 0.90           // 开场变形时长（秒）：0.5s 时动作全堆在前段，肉眼看像“啪”地一下，读不出变形过程
     static let circleRFrac: CGFloat = 0.272    // 大白圆半径 / 图标边长
     static let questionInkFrac: CGFloat = 0.420 // 问号墨迹高度 / 图标边长
     static let spreadFrac: CGFloat = 0.125     // 品牌字上下分开距离 / 图标边长
@@ -587,8 +587,10 @@ func drawAskMorphIcon(rect: NSRect, time: CGFloat, loop: AskMorphLoop = .breathe
     drawDockBackground(rect, size: size, variant: variant)
 
     let p = min(1, max(0, time / AskMorph.intro))
-    // 正向：easeOutCubic（前快后收）；反向（收回到开关）：从 1 收到 0，起步快、落定稳
-    let ease = reverse ? pow(1 - p, 3) : 1 - pow(1 - p, 3)
+    // smoothstep（前段慢 → 中段快 → 末段收），让每一段变形都看得清；
+    // 反向（收回到开关）用镜像曲线：从 1 平滑收到 0
+    func smoothstep(_ x: CGFloat) -> CGFloat { x * x * (3 - 2 * x) }
+    let ease = reverse ? smoothstep(1 - p) : smoothstep(p)
     let settled = ease > 0.995                     // 是否已处于"落定"外形（含反向刚起步时）
     let capRect = dockCapsuleRect(center: center, size: size)
 
