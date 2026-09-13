@@ -186,12 +186,16 @@ final class SoundCenter: NSObject, NSSoundDelegate {
 
     // MARK: NSSoundDelegate
 
-    func soundDidFinishPlaying(_ notification: Notification) {
-        guard let s = notification.object as? NSSound, s === current else { return }
+    /// NSSoundDelegate 回调：一次播完 → 若还有剩余次数就重播，否则收尾。
+    /// ⚠️ 签名必须是协议要求的 `sound(_:didFinishPlaying:)`。之前误写成
+    /// `soundDidFinishPlaying(_:)`（参数类型也不对），与协议不匹配 ⇒ 回调永不触发，
+    /// `remaining` 不减、不重播 ⇒ 所有「重复 N 次」实际都只响 1 次。
+    func sound(_ sound: NSSound, didFinishPlaying flag: Bool) {
+        guard sound === current else { return }
         if looping { return }                 // loops 模式下由 hover 监听负责停
         if remaining > 0 {
             remaining -= 1
-            s.play()
+            sound.play()
         } else {
             stop()
         }
