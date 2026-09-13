@@ -20,7 +20,10 @@ struct MonitoredEvent {
 
 /// 单个会话文件的监测游标
 struct SessionCursor {
-    var prevLineCount: Int? = nil   // 上次处理到的行数；nil = 尚未建立基线
+    /// 上次处理到的**字节位置**（不是行数）。nil = 尚未建立基线。
+    /// 用字节偏移而非行数，是为了增量扫描时能直接跳过已处理的字节 ——
+    /// 否则每次都要把整份日志按行拆分，实测那是扫描开销的大头。
+    var byteOffset: Int? = nil
     var goalActive = false          // 该会话当前是否存在未完成（活跃）的 goal
     var pendingQuestionCallId: String?  // 正在等待用户处理的交互式提问（其 tool/result 到达＝已处理）
     var lastSize: Int?                  // 上次扫描时的文件大小（用于「未变化则跳过解压」）
@@ -79,8 +82,13 @@ enum TaskMonitor {
         return candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) })
     }
 
-    /// 用 zstd 解压会话日志，返回全部文本行（缺 zstd 时返回 nil，调用方应优雅降级）
-    static func decompressLines(url: URL) -> [String]? {
+    /// 用 zstd 解压会话日志，返回**原始字节**（不再按行拆分成 `[String]`）。
+    ///
+    /// 为什么不在这里拆行：对 14MB / 3.7 万行的日志做 `String.split` 会创建 3.7 万个 String，
+    /// `sample` 采样显示它占单次扫描 CPU 的约 75%（热点在 `Collection.split` 与
+    /// `String.subscript` / `_allASCII`）。改为字节级扫描后，只会为**真正新增的**少数几行
+    /// 创建 String。缺 zstd 时返回 nil，调用方应优雅降级。
+    static func decompressData(url: URL) -> Data? {
         guard let zstd = zstdExecutablePath() else {
             return nil
         }
@@ -95,8 +103,7 @@ enum TaskMonitor {
             // 先读尽输出再等待，避免管道缓冲塞满导致子进程阻塞
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             p.waitUntilExit()
-            let text = String(data: data, encoding: .utf8) ?? ""
-            return text.split(separator: "\n").map(String.init)
+            return data
         } catch {
             return nil
         }
@@ -178,89 +185,123 @@ enum TaskMonitor {
 
     /// 扫描一个会话文件：增量推进游标，返回本批新事件对应的信号。
     /// 首次扫描（无基线）只初始化游标与 goalActive，不产生任何信号（避免回放历史）。
+    ///
+    /// 实现要点（性能）：解压后只在**字节层面**按 `\n` 切行，并且只处理
+    /// `cursor.byteOffset` 之后的新增字节 —— 不再每次把整份日志拆成 [String]。
     static func scan(url: URL, cursor: inout SessionCursor) -> ScanResult {
         // 文件没变化就直接返回：避免白跑一次全量解压（14MB 日志约 0.26s），
         // 这样轮询间隔可以压到 0.4s 而几乎不占 CPU
         let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
         let size = (attrs?[.size] as? NSNumber)?.intValue ?? -1
         let mtime = attrs?[.modificationDate] as? Date
-        if cursor.prevLineCount != nil, cursor.lastSize == size, cursor.lastMTime == mtime {
+        if cursor.byteOffset != nil, cursor.lastSize == size, cursor.lastMTime == mtime {
             return ScanResult()
         }
         cursor.lastSize = size
         cursor.lastMTime = mtime
-        guard let lines = decompressLines(url: url) else { return ScanResult() }
-        let n = lines.count
+        guard let data = decompressData(url: url) else { return ScanResult() }
+        let total = data.count
 
-        if cursor.prevLineCount == nil {
-            // 首次基线：记录行数；从历史倒序确定当前是否已有活跃 goal / 活跃 turn。
-            // 判定 turn 是必需的：App（或 dsh）重启时若已有回合正在跑，它的 turn/start 落在基线之前，
-            // 不判定就会一直停在「空闲」直到下一个回合 —— 表现为「动画消失」。
-            // 注意：JSONSerialization 会把 "/" 转义为 "\/" ，因此两种写法都要匹配。
-            var goalResolved = false
-            var turnResolved = false
-            var turnActive = false
-            for line in lines.reversed() {
-                if !goalResolved, line.contains("goal/change") || line.contains("goal\\/change") {
-                    if let e = parseLine(line), e.type == "goal/change" {
-                        if isGoalActivateOp(e.goalOp) { cursor.goalActive = true }
-                        else if isGoalCloseOp(e.goalOp) { cursor.goalActive = false }
-                        goalResolved = true
-                    }
-                }
-                if !turnResolved, line.contains("turn/start") || line.contains("turn/end") {
-                    if let e = parseLine(line) {
-                        if e.type == "turn/start" { turnActive = true; turnResolved = true }
-                        else if e.type == "turn/end" { turnActive = false; turnResolved = true }
-                    }
-                }
-                if goalResolved, turnResolved { break }
-            }
-            cursor.prevLineCount = n
-            var baseline = ScanResult()
-            baseline.busy = turnActive          // 让 tick() 立即进入「处理中」，动画随即恢复
-            return baseline
+        if cursor.byteOffset == nil {
+            return establishBaseline(data, total: total, cursor: &cursor)
         }
 
-        guard n > cursor.prevLineCount! else { return ScanResult() } // 无新增行
-        let start = cursor.prevLineCount!
+        let start = min(cursor.byteOffset!, total)
+        guard total > start else { return ScanResult() }   // 无新增字节
+
         var result = ScanResult()
-        for line in lines[start..<n] {
-            guard let e = parseLine(line) else { continue }
-            switch e.type {
-            case "goal/change":
-                if let op = e.goalOp {
-                    if isGoalActivateOp(op) { cursor.goalActive = true }
-                    else if isGoalCloseOp(op) { cursor.goalActive = false }
+        var lineStart = start
+        var i = start
+        while i < total {
+            if data[i] == 0x0A {                            // '\n'
+                if i > lineStart {
+                    applyLine(String(decoding: data[lineStart..<i], as: UTF8.self),
+                              cursor: &cursor, result: &result)
                 }
-                if isGoalCompleteEvent(e) { result.complete = true }
-            case "turn/end":
-                // 有活跃 goal 时回合结束不算完成（等 goal 真正结束）；
-                // 无 goal 的普通对话，回合结束即「任务完成」。
-                if !cursor.goalActive { result.complete = true }
-            case "turn/start":
-                result.busy = true
-                result.resumed = true        // 新一轮开始 = 你已选择、dsh 继续
-            case "approval/decided":
-                result.resumed = true
-            case "tool/call":
-                // 交互式提问 / 计划审批：会话在这里停下来等你选，日志里没有专用事件
-                if isQuestionTool(e.toolName) {
-                    result.question = true
-                    if e.multiSelect { result.questionMulti = true }
-                    cursor.pendingQuestionCallId = e.callId
-                }
-            case "tool/result":
-                // 该提问的 tool/result 到达 = 你已经在页面上处理完（选了某一项，或直接关掉）
-                if let cid = e.callId, cid == cursor.pendingQuestionCallId {
-                    result.resumed = true
-                    cursor.pendingQuestionCallId = nil
-                }
-            default:
-                if isConfirmEvent(e.type) { result.confirm = true }
+                lineStart = i + 1
             }
+            i += 1
         }
-        cursor.prevLineCount = n
+        // 未以换行结尾的尾行留给下次（日志可能正写到一半，避免处理残缺的行）
+        cursor.byteOffset = lineStart
         return result
+    }
+
+    /// 首次基线：字节级倒序扫描，确定当前是否已有活跃 goal / 活跃 turn。
+    ///
+    /// 判定 turn 是必需的：App（或 dsh）重启时若已有回合正在跑，它的 turn/start 落在
+    /// 基线之前，不判定就会一直停在「空闲」直到下一个回合 —— 表现为「动画消失」。
+    private static func establishBaseline(_ data: Data, total: Int, cursor: inout SessionCursor) -> ScanResult {
+        var goalResolved = false
+        var turnResolved = false
+        var turnActive = false
+        var lineEnd = total
+        var i = total - 1
+        while i >= 0 {
+            if data[i] == 0x0A {                            // '\n'
+                let from = i + 1
+                if from < lineEnd {
+                    let line = String(decoding: data[from..<lineEnd], as: UTF8.self)
+                    // 注意：JSONSerialization 会把 "/" 转义为 "\/"，因此两种写法都要匹配
+                    if !goalResolved, line.contains("goal/change") || line.contains("goal\\/change") {
+                        if let e = parseLine(line), e.type == "goal/change" {
+                            if isGoalActivateOp(e.goalOp) { cursor.goalActive = true }
+                            else if isGoalCloseOp(e.goalOp) { cursor.goalActive = false }
+                            goalResolved = true
+                        }
+                    }
+                    if !turnResolved, line.contains("turn/start") || line.contains("turn/end") {
+                        if let e = parseLine(line) {
+                            if e.type == "turn/start" { turnActive = true; turnResolved = true }
+                            else if e.type == "turn/end" { turnActive = false; turnResolved = true }
+                        }
+                    }
+                }
+                lineEnd = i
+            }
+            if goalResolved, turnResolved { break }
+            i -= 1
+        }
+        cursor.byteOffset = total
+        var baseline = ScanResult()
+        baseline.busy = turnActive          // 让 tick() 立即进入「处理中」，动画随即恢复
+        return baseline
+    }
+
+    /// 把一行事件套用到游标与扫描结果上（原 scan 内的 switch，原样抽出）
+    private static func applyLine(_ line: String, cursor: inout SessionCursor, result: inout ScanResult) {
+        guard let e = parseLine(line) else { return }
+        switch e.type {
+        case "goal/change":
+            if let op = e.goalOp {
+                if isGoalActivateOp(op) { cursor.goalActive = true }
+                else if isGoalCloseOp(op) { cursor.goalActive = false }
+            }
+            if isGoalCompleteEvent(e) { result.complete = true }
+        case "turn/end":
+            // 有活跃 goal 时回合结束不算完成（等 goal 真正结束）；
+            // 无 goal 的普通对话，回合结束即「任务完成」。
+            if !cursor.goalActive { result.complete = true }
+        case "turn/start":
+            result.busy = true
+            result.resumed = true        // 新一轮开始 = 你已选择、dsh 继续
+        case "approval/decided":
+            result.resumed = true
+        case "tool/call":
+            // 交互式提问 / 计划审批：会话在这里停下来等你选，日志里没有专用事件
+            if isQuestionTool(e.toolName) {
+                result.question = true
+                if e.multiSelect { result.questionMulti = true }
+                cursor.pendingQuestionCallId = e.callId
+            }
+        case "tool/result":
+            // 该提问的 tool/result 到达 = 你已经在页面上处理完（选了某一项，或直接关掉）
+            if let cid = e.callId, cid == cursor.pendingQuestionCallId {
+                result.resumed = true
+                cursor.pendingQuestionCallId = nil
+            }
+        default:
+            if isConfirmEvent(e.type) { result.confirm = true }
+        }
     }
 }

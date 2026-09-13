@@ -84,6 +84,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var turnActive = false
     private var cursors: [String: SessionCursor] = [:]
     private var monitorQueue = DispatchQueue(label: "dsh.monitor", qos: .background)
+    private var tickSeq = 0                     // 监测拍序号（用于目录枚举降频）
+    private var cachedSessionFiles: [URL] = []  // 上次枚举到的会话日志（拍间复用）
 
     /// 提醒动画的三段：变形 → 循环呼吸 → 反向收回
     private enum MorphPhase { case intro, looping, outro }
@@ -95,7 +97,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // 提醒节奏（逻辑拍 0.5s）
     private var promptTimer: Timer?
-    private var animTimer: Timer?               // 动画帧定时器（30fps，独立于逻辑拍）
+    private var animTimer: Timer?               // 动画帧定时器（60fps；稳态循环隔帧刷新，等效 30fps）
+    private var animFrameTick = 0               // 稳态抽帧计数器
+    /// 稳态循环的抽帧步长：1=60fps、2=30fps、3=20fps（取 60 的约数才能均匀抽帧）。
+    /// busy 色带每秒一个周期且是软渐变、呼吸/脉冲周期 1~3s，抽到 20fps 也看不出台阶。
+    private static let steadyFrameStride = 3
     private var bigBouncesLeft = 0            // 剩几次“大跳”(critical)弹跳
     private var attentionRequestID: Int?      // 最近一次 Dock 弹跳请求 id（用于取消）
 
@@ -464,10 +470,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 30fps 动画帧：busy 蓝绿流动 / reminding 呼吸发光（仅动画开启时运行）
+    /// 动画帧：busy 蓝绿流动 / reminding 呼吸发光（仅动画开启时运行）
     private func animBeat() {
         guard serviceRunning, animationsEnabled else { return }
         let t = Date().timeIntervalSinceReferenceDate
+        // 稳态循环隔帧刷新（60fps → 30fps）：
+        // busy 色带每秒走一个周期、呼吸/脉冲周期 1~3s，每帧位移不足 2px，隔帧肉眼无差别；
+        // 而变形 intro(0.9s) 与反向收尾 outro(0.42s) 是快速过渡，保持满帧以免看出台阶。
+        // 所有相位都用真实时间戳 t 计算，所以跳帧只是采样率减半，动画速度分毫不变。
+        let inTransition = morphView != nil && (morphPhase == .intro || morphPhase == .outro)
+        if !inTransition {
+            animFrameTick += 1
+            if animFrameTick % Self.steadyFrameStride != 0 { return }
+        }
         // 反向收尾独立于 displayState（此时提醒已 dismiss，状态可能已切回 running/busy）
         if morphView != nil, morphPhase == .outro {
             let el = t - morphPhaseStart
@@ -690,11 +705,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 扫描事件（缺 zstd 时跳过：仅显示服务状态，不崩溃）
         guard TaskMonitor.zstdExecutablePath() != nil else { return }
         var confirmSeen = false, questionSeen = false, questionMultiSeen = false, completeSeen = false, busySeen = false, resumedSeen = false
-        let files = TaskMonitor.candidates()
+        // 目录枚举降频到每 5 拍（≈2s）一次：FileManager.enumerator 要 open + getattrlistbulk
+        // 递归遍历整棵会话树、并为每个条目创建 NSURL，实测占监测线程三分之一的时间。
+        // 会话目录不会在 0.4s 内出现/消失；已跟踪文件的 mtime 检查仍保持每拍，
+        // 所以信号响应速度不变，只有「新会话首次出现」最多晚 2s 被看到。
+        tickSeq &+= 1
+        if tickSeq % 5 == 1 || cachedSessionFiles.isEmpty {
+            cachedSessionFiles = TaskMonitor.candidates()
+        }
+        let files = cachedSessionFiles
         for url in files {
             let k = url.path
             var c = cursors[k] ?? SessionCursor()
-            let initialized = c.prevLineCount != nil
+            let initialized = c.byteOffset != nil
             if !initialized {
                 // 首次基线：可能已判定出「有活跃 turn」，必须把 busy 信号带出来，
                 // 否则 App 在 dsh 已运行时启动会一直停在「空闲」（动画不出来，见 postmortem）。
