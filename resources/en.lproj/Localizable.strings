@@ -61,6 +61,4 @@
 "sound.slot.start" = "Service started";
 "sound.slot.stop" = "Service stopped";
 "about.menu" = "About %@";
-"about.info" = "Version %@ (build %@)\n\nGitHub: %@\nSponsor: %@";
-"about.github" = "Open GitHub";
-"about.sponsor" = "Sponsor";
+"about.info" = "Version %@ (build %@)";

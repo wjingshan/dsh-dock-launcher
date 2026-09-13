@@ -311,9 +311,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - 关于
 
-    private static let repoURL = "https://github.com/wjingshan/dsh-dock-launcher"
-    private static let sponsorURL = "https://github.com/wjingshan/dsh-dock-launcher#-赞助"
-
     private func aboutMenuItem() -> NSMenuItem {
         let it = NSMenuItem(title: String(format: L("about.menu"), L("app.name")),
                             action: #selector(aboutAction), keyEquivalent: "")
@@ -322,25 +319,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return it
     }
 
-    /// 关于：软件名称 / 版本号 / GitHub 地址 / 赞助链接（两个可直接点开）
+    /// 关于：名称 / 版本号（垂直居中排列）+ 底部两个小字超链接（GitHub / 赞助）
     @objc private func aboutAction() {
         let build = (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "-"
-        let a = NSAlert()
-        a.messageText = L("app.name")
-        a.informativeText = String(format: L("about.info"), appVersion, build,
-                                   Self.repoURL, Self.sponsorURL)
-        a.icon = NSApp.applicationIconImage
-        a.addButton(withTitle: L("button.ok"))          // 默认按钮（回车＝关闭）
-        a.addButton(withTitle: L("about.github"))
-        a.addButton(withTitle: L("about.sponsor"))
-        switch a.runModal() {
-        case .alertSecondButtonReturn:
-            if let u = URL(string: Self.repoURL) { NSWorkspace.shared.open(u) }
-        case .alertThirdButtonReturn:
-            if let u = URL(string: Self.sponsorURL) { NSWorkspace.shared.open(u) }
-        default:
-            break
-        }
+        let alert = AboutBox.make(appName: L("app.name"),
+                                  infoLine: String(format: L("about.info"), appVersion, build),
+                                  okTitle: L("button.ok"))
+        alert.runModal()
     }
 
     /// 环境自检：显示架构/系统/dsh/zstd/API key 的检查结果
