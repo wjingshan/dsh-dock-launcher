@@ -28,6 +28,8 @@
 "notify.confirm.body" = "dsh の Web UI で確認が必要なタスクがあります。";
 "notify.complete.title" = "DeepSeek Harness · 完了";
 "notify.complete.body" = "タスクが完了しました。dsh の Web UI で確認してください。";
+"notify.question.title" = "DeepSeek Harness が選択を待っています";
+"notify.question.body" = "dsh の Web UI で選ぶ項目があります。";
 "error.startFailed" = "dsh の起動に失敗しました。~/Library/Logs/dsh-launcher.log を確認してください";
 "error.notResponding" = "120 秒経過しても 127.0.0.1:3080 が応答しません。~/Library/Logs/dsh-web.log を確認してください";
 

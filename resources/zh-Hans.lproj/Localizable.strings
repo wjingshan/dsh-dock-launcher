@@ -28,6 +28,8 @@
 "notify.confirm.body" = "有任务需要你到 dsh 网页确认。";
 "notify.complete.title" = "DeepSeek Harness · 完成";
 "notify.complete.body" = "任务已完成，去 dsh 网页查看。";
+"notify.question.title" = "DeepSeek Harness 在等你选择";
+"notify.question.body" = "有一个选项在等你到 dsh 网页点选。";
 "error.startFailed" = "dsh 启动失败，日志 ~/Library/Logs/dsh-launcher.log";
 "error.notResponding" = "120s 后 127.0.0.1:3080 无响应，见 ~/Library/Logs/dsh-web.log";
 

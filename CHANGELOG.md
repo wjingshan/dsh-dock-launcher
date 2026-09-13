@@ -194,3 +194,8 @@
 - **新增宿主插件 `plugins/dsh-dock-bridge`**（声明 `dsh.bundle`，可用 `dsh plugin --profile web add` 安装）：由 dsh 进程直接提供 **端口 / PID / 带 token 的地址**，写入 `~/.config/dsh-dock-launcher/runtime.json`（权限 `0600`），退出时删除（含 SIGTERM 路径，靠 `process.on('exit')` 兜底）。App 优先读它、未装插件则回退读启动日志，并且只在上报 PID 仍存活、端口仍可连时才采信——崩溃残留的文件会被自动忽略。
 - **环境自检新增一条**：显示当前取地址走的是「插件运行时文件」还是「启动日志」。
 - **修复一键安装失效（patch 级）**：`install.sh` 原先只匹配 `macOS-arm64.zip`，而 v0.14.0 起发布资产名为 `macOS-universal.zip`，导致 `latest` 解析不到安装包；现优先取 universal 资产、并保留 arm64 回退（两条分支均已对真实 Release 实测）。
+
+### 0.16.0（minor）
+- **新增第三种提醒态「等你选择」**：此前 dsh 让你选分支（`ask_user_question`）或审批计划（`exit_plan_mode`）时，App **完全没有提示**——日志里这类交互没有专用事件（不像审批有 `approval/asked`），只以 `tool/call` 出现，于是图标一直停在「任务进行中」的极光动画上，反而暗示它仍在干活。现在按工具名识别并进入提醒：**紫色**边缘呼吸发光 + 弹跳 + `Ping` 音效 + 系统通知（「在等你选择」），徽标显示 `?`；回到 dsh 页面或点「知道了」即停止。
+- **音效按提醒类型区分**（修正与文档不一致的旧行为）：需确认=`Purr`、等你选择=`Ping`、完成=`Glass`（此前三种都放 `Purr`，而 CHANGELOG 0.3.0 记录的是「完成 → Glass」）。
+- 通知文案新增 `notify.question.*`（中 / 英 / 日 / 韩 四种语言）。

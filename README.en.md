@@ -69,15 +69,16 @@ DeepSeek Harness 开关.app   (current version v0.15.0)
   - `Off` (red, knob left) — service stopped
   - `Running · Idle` (green, knob right)
   - `Task running` — multi-color aurora flow (blue → cyan → green → violet long gradient drifting slowly + a soft light sweep, 60 fps)
-  - `Needs attention` — inward glow from the icon edge + a 2 px white streamer travelling along the edge; green = done, orange = confirmation needed
-- **Dynamic alerts**: when a task finishes or needs confirmation *and* you are not on the dsh page, the icon bounces 4 times with a notification and a sound, then settles into a **quiet continuous glow**; it stops as soon as you **return to the dsh page**, click the icon, or choose “Got it” (no periodic bouncing).
-- **Completion counter on the Dock badge**: each finished task increments a count (`1`, `2`, …) shown on the Dock icon; it resets to zero when you return to the dsh page, click the icon, or choose “Got it”.
+  - `Needs attention` — inward glow from the icon edge + a 2 px white streamer travelling along the edge; green = done, orange = confirmation needed, **purple = waiting for your choice**
+- **Dynamic alerts**: when a task finishes, needs confirmation, or is **waiting for your choice** (option prompts, plan approval), the icon bounces 4 times with a notification and a sound (done = `Glass`, confirmation = `Purr`, choice = `Ping`), then settles into a **quiet continuous glow**; it stops as soon as you **return to the dsh page**, click the icon, or choose “Got it” (no periodic bouncing).
+- **Completion counter on the Dock badge**: each finished task increments a count (`1`, `2`, …) shown on the Dock icon; it resets to zero when you return to the dsh page, click the icon, or choose “Got it”. Confirmation shows `!`, a pending choice shows `?`.
 - **Animation master switch**: turn all icon animations off/on from the right-click menu (static icons remain; bouncing and notifications still work). Cost is negligible — it only redraws a 128 px icon while animating.
 - **Automatic API-key injection**: GUI-launched processes do not read `.zshrc`, so the app parses `DEEPSEEK_API_KEY` from `~/.zshenv` / `.zprofile` / `.zshrc` / `.bash_profile` / `.bashrc` / `.profile` and injects it into the `dsh` child process (read-only, never written to disk, never sent anywhere).
 - **Task-state monitoring** by reading `~/.dsh/sessions/*/session.jsonl.zstd`:
   - `approval/request`, `approval/asked` → **needs confirmation**
   - `turn/end` (a normal conversation turn ended) → **task done**; if the session has an active goal, turn end is ignored and only `goal/change` (`operation == "complete"` / `goal.phase == "complete"`) counts as done
   - `turn/start` → **running**
+  - `tool/call` whose tool is `ask_user_question` / `exit_plan_mode` → **waiting for your choice** (neither interaction has a dedicated event in the log, so they are identified by tool name)
 
 > Completion rule: without an active goal, one finished turn counts as “done”; with an active goal, only the real goal completion notifies you. All recently active sessions are monitored, so parallel sessions are not missed.
 

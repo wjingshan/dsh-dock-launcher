@@ -28,6 +28,8 @@
 "notify.confirm.body" = "A task needs your confirmation in the dsh web UI.";
 "notify.complete.title" = "DeepSeek Harness · Done";
 "notify.complete.body" = "Task finished. Open the dsh web UI to review.";
+"notify.question.title" = "DeepSeek Harness is waiting for your choice";
+"notify.question.body" = "An option is waiting for you in the dsh web UI.";
 "error.startFailed" = "dsh failed to start. See ~/Library/Logs/dsh-launcher.log";
 "error.notResponding" = "127.0.0.1:3080 did not respond within 120s. See ~/Library/Logs/dsh-web.log";
 

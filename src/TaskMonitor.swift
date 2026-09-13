@@ -10,6 +10,8 @@ struct MonitoredEvent {
     // goal/change 事件的附加信息（用于识别真正的 goal 完成 / 活跃状态）
     var goalOp: String?
     var goalPhase: String?
+    // tool/call 事件的工具名（用于识别「停下来等你选」的交互式工具）
+    var toolName: String?
 }
 
 /// 单个会话文件的监测游标
@@ -20,7 +22,8 @@ struct SessionCursor {
 
 /// 一次扫描的结果
 struct ScanResult {
-    var confirm = false   // 需要确认
+    var confirm = false   // 需要确认（审批 / 权限）
+    var question = false  // 停下来等你选择（交互式提问 / 计划审批）
     var complete = false  // 任务完成
     var busy = false      // 任务进行中
 }
@@ -89,11 +92,16 @@ enum TaskMonitor {
               let seq = obj["seq"] as? Int else { return nil }
         var goalOp: String?
         var goalPhase: String?
-        if type == "goal/change", let data = obj["data"] as? [String: Any] {
-            goalOp = data["operation"] as? String
-            goalPhase = (data["goal"] as? [String: Any])?["phase"] as? String
+        var toolName: String?
+        if let data = obj["data"] as? [String: Any] {
+            if type == "goal/change" {
+                goalOp = data["operation"] as? String
+                goalPhase = (data["goal"] as? [String: Any])?["phase"] as? String
+            } else if type == "tool/call" {
+                toolName = data["name"] as? String
+            }
         }
-        return MonitoredEvent(seq: seq, type: type, goalOp: goalOp, goalPhase: goalPhase)
+        return MonitoredEvent(seq: seq, type: type, goalOp: goalOp, goalPhase: goalPhase, toolName: toolName)
     }
 
     // MARK: 信号判别
@@ -101,6 +109,12 @@ enum TaskMonitor {
     /// 任务需要确认：审批/询问/权限事件
     static func isConfirmEvent(_ type: String) -> Bool {
         type == "approval/request" || type == "approval/asked" || type == "permission/ask"
+    }
+
+    /// 停下来等你选择：这些工具会阻塞等你回答/批准，日志里**没有**专用事件
+    /// （不像审批有 approval/asked），只以 `tool/call` 出现，因此按工具名识别。
+    static func isQuestionTool(_ name: String?) -> Bool {
+        name == "ask_user_question" || name == "exit_plan_mode"
     }
 
     /// 任务完成：真正的 goal 结束（goal/change 且操作为 complete / 阶段为 complete）
@@ -161,6 +175,9 @@ enum TaskMonitor {
                 if !cursor.goalActive { result.complete = true }
             case "turn/start":
                 result.busy = true
+            case "tool/call":
+                // 交互式提问 / 计划审批：会话在这里停下来等你选，日志里没有专用事件
+                if isQuestionTool(e.toolName) { result.question = true }
             default:
                 if isConfirmEvent(e.type) { result.confirm = true }
             }

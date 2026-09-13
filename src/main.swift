@@ -17,7 +17,7 @@ enum DisplayState: Equatable {
     }
 }
 
-enum RemindKind { case complete, confirm }
+enum RemindKind { case complete, confirm, question }
 
 /// Dock 提醒动画视图：作为 NSDockTile.contentView，胶囊按呼吸缩放 + 霓虹光晕
 final class RemindView: NSView {
@@ -375,7 +375,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 大跳阶段：连续几次单次弹跳（informational，可取消、不会一直弹到激活）
         if bigBouncesLeft > 0 {
             attentionRequestID = NSApp.requestUserAttention(.informationalRequest)
-            playSound("Purr")
+            // 三种提醒各自的音效：需确认=Purr、等你选择=Ping、完成=Glass
+            switch remindKind {
+            case .confirm: playSound("Purr")
+            case .question: playSound("Ping")
+            default: playSound("Glass")
+            }
             bigBouncesLeft -= 1
             log("大跳剩余 \(bigBouncesLeft)")
         }
@@ -392,9 +397,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.dockTile.display()
         } else if displayState == .reminding {
             guard let v = ensureRemindView() else { return }
-            v.color = (remindKind == .confirm)
-                ? NSColor(calibratedRed: 1.0, green: 0.55, blue: 0.10, alpha: 1)
-                : NSColor(calibratedRed: 0.25, green: 0.90, blue: 0.55, alpha: 1)
+            v.color = Self.remindColor(remindKind)
             let k = CGFloat(t)
             // 双频呼吸：主呼吸(慢) + 微脉动(快)，让光晕有层次、不死板
             let breathe = 0.5 + 0.5 * sin(k * 2.2)
@@ -407,6 +410,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// 三种提醒各自的颜色：完成=绿、需确认=橙、等你选择=紫
+    private static func remindColor(_ kind: RemindKind?) -> NSColor {
+        switch kind {
+        case .confirm:  return NSColor(calibratedRed: 1.00, green: 0.55, blue: 0.10, alpha: 1)
+        case .question: return NSColor(calibratedRed: 0.62, green: 0.45, blue: 1.00, alpha: 1)
+        default:        return NSColor(calibratedRed: 0.25, green: 0.90, blue: 0.55, alpha: 1)
+        }
+    }
+
     private func beginRemind(kind: RemindKind, reason: String) {
         guard serviceRunning else { return }
         remindKind = kind
@@ -414,12 +426,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         displayState = .reminding
         if kind == .confirm {
             NSApp.dockTile.badgeLabel = "!"
+        } else if kind == .question {
+            NSApp.dockTile.badgeLabel = "?"
         } else {
             completedCount += 1                                  // 完成次数累加
             NSApp.dockTile.badgeLabel = "\(completedCount)"      // 徽标显示完成数量（如 3）
         }
         switch kind {
         case .confirm: postNotification(title: L("notify.confirm.title"), body: L("notify.confirm.body"))
+        case .question: postNotification(title: L("notify.question.title"), body: L("notify.question.body"))
         case .complete: postNotification(title: L("notify.complete.title"), body: L("notify.complete.body"))
         }
         log("进入提醒：\(reason)（先大跳，后安静持续发光，直到你回 dsh 网页）")
@@ -497,7 +512,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // 扫描事件（缺 zstd 时跳过：仅显示服务状态，不崩溃）
         guard TaskMonitor.zstdExecutablePath() != nil else { return }
-        var confirmSeen = false, completeSeen = false, busySeen = false
+        var confirmSeen = false, questionSeen = false, completeSeen = false, busySeen = false
         let files = TaskMonitor.candidates()
         for url in files {
             let k = url.path
@@ -507,6 +522,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let r = TaskMonitor.scan(url: url, cursor: &c)
             cursors[k] = c
             if r.confirm { confirmSeen = true }
+            if r.question { questionSeen = true }
             if r.complete { completeSeen = true }
             if r.busy { busySeen = true }
         }
@@ -517,12 +533,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard self.serviceRunning else { return }
             // 新出现的完成/需确认信号：先判断用户此刻是否已在本 dsh 网页（只有有真实信号才阻塞探测，频率低）
             var userBack = false
-            if confirmSeen || completeSeen { userBack = Frontmost.looksBackAtDSH() }
+            if confirmSeen || questionSeen || completeSeen { userBack = Frontmost.looksBackAtDSH() }
             // 若此前已提醒过且用户刚回来 → 直接消停
             if (self.remindKind != nil) && userBack { self.dismissReminding(reason: "检测到回网页") }
             if completeSeen { self.turnActive = false }   // 回合结束，退出“进行中”
             if busySeen { self.turnActive = true }        // 新回合开始 → 进入“进行中”
             if confirmSeen { self.beginRemind(kind: .confirm, reason: "需确认") }
+            else if questionSeen { self.beginRemind(kind: .question, reason: "等待你选择") }
             else if completeSeen && !userBack { self.beginRemind(kind: .complete, reason: "完成") }
             self.refreshUI()
         }
