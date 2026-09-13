@@ -70,3 +70,5 @@
 "sound.column.repeat" = "Repeat";
 "sound.reset" = "Restore Defaults";
 "button.done" = "Done";
+"about.github" = "Open GitHub";
+"about.sponsor" = "Sponsor";

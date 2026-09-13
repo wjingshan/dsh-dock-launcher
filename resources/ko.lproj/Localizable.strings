@@ -70,3 +70,5 @@
 "sound.column.repeat" = "반복";
 "sound.reset" = "기본값 복원";
 "button.done" = "완료";
+"about.github" = "GitHub 열기";
+"about.sponsor" = "후원하기";

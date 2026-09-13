@@ -246,13 +246,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return it
     }
 
-    /// 关于：名称 / 版本号（垂直居中排列）+ 底部两个小字超链接（GitHub / 赞助）
+    /// 关于：图标 / 名称 / 版本号整体居中，下方两个按钮打开 GitHub 与赞助页
     @objc private func aboutAction() {
         let build = (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "-"
-        let alert = AboutBox.make(appName: L("app.name"),
-                                  infoLine: String(format: L("about.info"), appVersion, build),
-                                  okTitle: L("button.ok"))
-        alert.runModal()
+        AboutBox.show(appName: L("app.name"),
+                      infoLine: String(format: L("about.info"), appVersion, build),
+                      okTitle: L("button.ok"),
+                      repoTitle: L("about.github"),
+                      sponsorTitle: L("about.sponsor"))
     }
 
     /// 环境自检：显示架构/系统/dsh/zstd/API key 的检查结果

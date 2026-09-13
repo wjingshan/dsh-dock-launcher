@@ -70,3 +70,5 @@
 "sound.column.repeat" = "重复";
 "sound.reset" = "恢复默认";
 "button.done" = "完成";
+"about.github" = "打开 GitHub";
+"about.sponsor" = "赞助支持";

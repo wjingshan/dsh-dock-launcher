@@ -70,3 +70,5 @@
 "sound.column.repeat" = "繰り返し";
 "sound.reset" = "デフォルトに戻す";
 "button.done" = "完了";
+"about.github" = "GitHub を開く";
+"about.sponsor" = "スポンサー";
