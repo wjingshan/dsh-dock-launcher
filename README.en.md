@@ -16,27 +16,22 @@ The icon always reflects service & task state, and animates when a task **finish
 
 The UI language **follows the system**, with built-in **English / 简体中文 / 日本語 / 한국어** (you can also set it per-app in System Settings → General → Language & Region → Applications).
 
-**Basic states**
+| Icon | State | Notes |
+|:--:|:--|:--|
+| ![off](docs/icon-off.png) | **Off** | Red · knob left |
+| ![running](docs/icon-running.png) | **Running · Idle** | Green · knob right |
+| ![busy](docs/icon-busy.gif) | **Task running** | Multi-color aurora flow |
+| ![done](docs/icon-remind-complete.gif) | **Task done** | Inward edge glow + white streamer (green) |
+| ![confirm / single choice](docs/icon-remind-question.gif) | **Needs confirmation / single choice** | Question-mark morph |
+| ![multi](docs/icon-remind-multi.gif) | **Waiting · multi-select** | Check-mark fade-overlap |
 
-| Off | Running · Idle | Task running |
-|:--:|:--:|:--:|
-| ![off](docs/icon-off.png) | ![running](docs/icon-running.png) | ![busy](docs/icon-busy.gif) |
-| Red · knob left | Green · knob right | Multi-color aurora flow |
+> The six images sit in a **single column** rather than one row on purpose: GitHub's `max-width: 100%`
+> shrinks every image to the width of its table cell. In a row, each column has a different width
+> (measured 121–235px), so each image ended up rendered at a different size. Sharing one column means
+> they all share the same width — so the six are always displayed at exactly the same size, at any
+> viewport width.
 
-**Reminder states** (animations)
-
-| Task done | Needs confirmation / single choice | Waiting · multi-select |
-|:--:|:--:|:--:|
-| ![done](docs/icon-remind-complete.gif) | ![confirm / single choice](docs/icon-remind-question.gif) | ![multi](docs/icon-remind-multi.gif) |
-| Inward edge glow + white streamer (green) | Question-mark morph | Check-mark fade-overlap |
-
-> Two 3-column tables instead of one 6-column table is deliberate: GitHub's `max-width: 100%`
-> shrinks every image **to the width of its table cell**. With 6 columns each cell was only ~86px
-> wide, and cells differed in width according to their header text, so each image ended up rendered
-> at a different size. At 3 columns the cells are ~200px — wider than the images' intrinsic 128px —
-> so all seven now render at their natural size.
-
-> Four of the images above are **animations**. When dsh stops for an option prompt (`ask_user_question`) or plan approval (`exit_plan_mode`), **DeepSeek and HARNESS move apart, the switch's white knob grows into a large rounded square, and a blue symbol appears inside it**. It then keeps looping **until you actually make your choice in the dsh page and dsh continues**, at which point a **reverse animation** folds it back into the switch:
+> Four of the images in the table above are **animations**. When dsh stops for an option prompt (`ask_user_question`) or plan approval (`exit_plan_mode`), **DeepSeek and HARNESS move apart, the switch's white knob grows into a large rounded square, and a blue symbol appears inside it**. It then keeps looping **until you actually make your choice in the dsh page and dsh continues**, at which point a **reverse animation** folds it back into the switch:
 > - **Needs confirmation (approval) / single choice / plain question**: a blue **question mark**, looping a soft brightness breath. These cases **share one and the same animation** (hence the single column above); inside the app they differ only in **alert sound and notification text**.
 > - **Multi-select**: a blue **check mark**, looping a fade-overlap - it is drawn from the start, then dissolves from the start, and a new stroke begins while the old one is still fading out (two strokes overlap in time).
 
