@@ -12,8 +12,8 @@
 "menu.openPage" = "打开 DeepSeek Harness 页面";
 "menu.openPageShort" = "打开 dsh 网页 (127.0.0.1:3080)";
 "menu.ack" = "知道了，停止提醒";
-"menu.stop" = "停止服务…";
-"menu.start" = "启动服务";
+"menu.stop" = "停止 DSH 服务…";
+"menu.start" = "启动 DSH 服务";
 "menu.animOff" = "关闭动画";
 "menu.animOn" = "打开动画";
 "menu.logs" = "打开日志";
@@ -60,7 +60,7 @@
 "sound.slot.complete" = "任务完成";
 "sound.slot.start" = "服务启动";
 "sound.slot.stop" = "服务停止";
-"about.menu" = "关于 %@";
+"about.menu" = "关于…";
 "about.info" = "版本 %@（build %@）";
 "menu.sound.settings" = "%@设置…";
 "sound.window.title" = "提示音设置";

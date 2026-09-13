@@ -346,15 +346,18 @@ func drawBusyFlowIcon(rect: NSRect, phase: CGFloat, variant: IconVariant = .dark
     let capPath = NSBezierPath(roundedRect: capRect, xRadius: capRect.height/2, yRadius: capRect.height/2)
     NSGraphicsContext.saveGraphicsState()
     capPath.addClip()
-    // 长色带极光：一个颜色循环 = 4×胶囊宽（每段色带 = 一个胶囊宽，色带很长、变化舒缓）；
-    // 铺 4 个循环 + 同色收尾，绘制区间按「始终完整覆盖胶囊」对齐，位移按真实周期取模 → 无缝。
+    // 多色极光色带：一个颜色循环 = 1.3×胶囊宽（每秒正好 1 个循环），铺 3 个循环 + 同色收尾。
+    // 位移必须对 cycle 取模：phase 是绝对时间戳（约 8 亿秒），一旦漏掉取模，色带会被推出画布几万像素，
+    // 胶囊里就只剩底板色 + 白色扫光 —— 看起来正是「蓝绿渐变消失，只有微弱白色流动」。
     let cycle = capRect.width * 1.3
     let seq = [auroraBlue, auroraCyan, auroraGreen, auroraViolet]
     var colors: [NSColor] = []
     for _ in 0..<4 { colors.append(contentsOf: seq) }
-    colors.append(auroraBlue)                    // 收尾同色，首尾相接（每段 = 胶囊宽）
-    let span = cycle * 3
-    let shift = (phase * capRect.width * 1.3)   // = cycle 倍数 ⇒ 每秒正好 1 个循环，循环衔接无跳变.truncatingRemainder(dividingBy: cycle)
+    colors.append(auroraBlue)                    // 收尾同色，首尾相接
+    let span = cycle * 4        // 必须正好覆盖上面 colors 里铺的 4 个完整循环：
+                                // 否则 shift 的回绕周期（cycle）与渐变实际图案周期（span/4）不一致，
+                                // 每绕一圈接缝处颜色就会跳变（表现为周期性卡顿尖峰）。
+    let shift = (phase * capRect.width * 1.3).truncatingRemainder(dividingBy: cycle)
     let grad = NSGradient(colors: colors)!
     // 区间左端始终比胶囊左边缘靠左 (span - 胶囊宽)，保证任何相位下胶囊都被完整覆盖
     let fromX = capRect.minX - (span - capRect.width) + shift

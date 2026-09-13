@@ -12,8 +12,8 @@
 "menu.openPage" = "DeepSeek Harness のページを開く";
 "menu.openPageShort" = "dsh のページを開く (127.0.0.1:3080)";
 "menu.ack" = "了解、通知を停止";
-"menu.stop" = "サービスを停止…";
-"menu.start" = "サービスを起動";
+"menu.stop" = "DSH サービスを停止…";
+"menu.start" = "DSH サービスを起動";
 "menu.animOff" = "アニメーションをオフ";
 "menu.animOn" = "アニメーションをオン";
 "menu.logs" = "ログを開く";
@@ -60,7 +60,7 @@
 "sound.slot.complete" = "タスク完了";
 "sound.slot.start" = "サービス起動";
 "sound.slot.stop" = "サービス停止";
-"about.menu" = "%@ について";
+"about.menu" = "情報…";
 "about.info" = "バージョン %@（build %@）";
 "menu.sound.settings" = "%@の設定…";
 "sound.window.title" = "通知サウンド設定";

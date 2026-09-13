@@ -260,7 +260,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - 关于
 
     private func aboutMenuItem() -> NSMenuItem {
-        let it = NSMenuItem(title: String(format: L("about.menu"), L("app.name")),
+        let it = NSMenuItem(title: L("about.menu"),
                             action: #selector(aboutAction), keyEquivalent: "")
         it.target = self
         it.image = sfSymbol("info.circle")
@@ -348,12 +348,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         m.addItem(NSMenuItem.separator())
         m.addItem(aboutMenuItem())
-        m.addItem(NSMenuItem.separator())
-
-        let quit = NSMenuItem(title: L("menu.quit"), action: #selector(quitAction), keyEquivalent: "q")
-        quit.image = sfSymbol("power")
-        quit.target = self
-        m.addItem(quit)
+        // 不再自己加「退出」：macOS 本就会在 Dock 右键菜单末尾自动提供「退出」，
+        // 之前两个一起出现（「退出」+「退出 DeepSeek Harness 开关」），用户看到重复项。
         return m
     }
 

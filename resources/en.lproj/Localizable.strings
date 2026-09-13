@@ -12,8 +12,8 @@
 "menu.openPage" = "Open DeepSeek Harness page";
 "menu.openPageShort" = "Open dsh page (127.0.0.1:3080)";
 "menu.ack" = "Got it — stop reminding";
-"menu.stop" = "Stop service…";
-"menu.start" = "Start service";
+"menu.stop" = "Stop DSH service…";
+"menu.start" = "Start DSH service";
 "menu.animOff" = "Turn off animations";
 "menu.animOn" = "Turn on animations";
 "menu.logs" = "Open log";
@@ -60,7 +60,7 @@
 "sound.slot.complete" = "Task done";
 "sound.slot.start" = "Service started";
 "sound.slot.stop" = "Service stopped";
-"about.menu" = "About %@";
+"about.menu" = "About…";
 "about.info" = "Version %@ (build %@)";
 "menu.sound.settings" = "%@ Settings…";
 "sound.window.title" = "Alert Sounds";

@@ -12,8 +12,8 @@
 "menu.openPage" = "DeepSeek Harness 페이지 열기";
 "menu.openPageShort" = "dsh 페이지 열기 (127.0.0.1:3080)";
 "menu.ack" = "확인, 알림 중지";
-"menu.stop" = "서비스 중지…";
-"menu.start" = "서비스 시작";
+"menu.stop" = "DSH 서비스 중지…";
+"menu.start" = "DSH 서비스 시작";
 "menu.animOff" = "애니메이션 끄기";
 "menu.animOn" = "애니메이션 켜기";
 "menu.logs" = "로그 열기";
@@ -60,7 +60,7 @@
 "sound.slot.complete" = "작업 완료";
 "sound.slot.start" = "서비스 시작";
 "sound.slot.stop" = "서비스 중지";
-"about.menu" = "%@ 정보";
+"about.menu" = "정보…";
 "about.info" = "버전 %@(build %@)";
 "menu.sound.settings" = "%@ 설정…";
 "sound.window.title" = "알림음 설정";
