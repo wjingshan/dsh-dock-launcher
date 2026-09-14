@@ -122,7 +122,22 @@ No other project combines what this app does: **the Dock icon is both the status
 4. **Right-click** the Dock icon = action menu (stopping the service always asks for confirmation).
 5. Clicking the menu-bar icon opens the same menu.
 
-> Allow notification permission on first run to receive “needs confirmation / task done” notifications.
+> Tip: there are **four** reminder channels — the Dock icon animation, the Dock bounce, the alert sound, and system notifications. **Notifications are optional**: if you don't want banners, pick “Turn off system notifications” in the right-click menu — no permission prompt will ever appear (authorization is only requested the first time a notification actually needs to be delivered).
+
+## Permissions
+
+The app touches **two** system permissions, and **both are optional** — it works fine without either.
+
+| Permission | Used for | If you decline |
+|---|---|---|
+| **Notifications** | The reminder banner (one of four reminder channels) | The other three still work: Dock icon animation, Dock bounce, alert sound. You can turn this one off from the right-click menu |
+| **Automation (AppleEvents)** | **Browsers only**: reads the active tab URL to tell precisely whether you are back on `127.0.0.1:3080`; focuses an existing tab instead of opening a new one | Falls back to “any browser in the foreground counts as being back”; clicking the icon activates the browser and opens the URL instead (may open a duplicate tab) |
+
+**Permissions never requested or used**: Accessibility, Input Monitoring, Screen Recording, Full Disk Access, Files and Folders (Desktop / Documents / Downloads), Microphone, Camera, Location, Contacts, Calendars, Photos, Login Items.
+
+Worth noting: the “stop the alert sound once the pointer reaches the Dock” feature **polls the pointer position on a timer** (`NSEvent.mouseLocation`) rather than installing a global event monitor — so it genuinely needs neither Accessibility nor Input Monitoring.
+
+The app is also **not sandboxed** (empty entitlements, ad-hoc signature). That is what lets it freely invoke `dsh` / `zstd` from Homebrew and read/write `~/.dsh` — and it also means it is not notarized, so the first launch relies on `install.sh` to strip the quarantine flag.
 
 ## Optional: the dock-bridge host plugin
 

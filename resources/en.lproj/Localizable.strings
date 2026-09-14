@@ -16,6 +16,8 @@
 "menu.start" = "Start DSH service";
 "menu.animOff" = "Turn off animations";
 "menu.animOn" = "Turn on animations";
+"menu.notifyOff" = "Turn off system notifications";
+"menu.notifyOn" = "Turn on system notifications";
 "menu.logs" = "Open log";
 "menu.version" = "Version %@";
 "menu.quit" = "Quit DeepSeek Harness Switch";

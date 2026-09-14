@@ -16,6 +16,8 @@
 "menu.start" = "启动 DSH 服务";
 "menu.animOff" = "关闭动画";
 "menu.animOn" = "打开动画";
+"menu.notifyOff" = "关闭系统通知";
+"menu.notifyOn" = "打开系统通知";
 "menu.logs" = "打开日志";
 "menu.version" = "版本 v%@";
 "menu.quit" = "退出 DeepSeek Harness 开关";

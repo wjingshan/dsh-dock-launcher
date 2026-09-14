@@ -16,6 +16,8 @@
 "menu.start" = "DSH サービスを起動";
 "menu.animOff" = "アニメーションをオフ";
 "menu.animOn" = "アニメーションをオン";
+"menu.notifyOff" = "システム通知をオフ";
+"menu.notifyOn" = "システム通知をオン";
 "menu.logs" = "ログを開く";
 "menu.version" = "バージョン %@";
 "menu.quit" = "DeepSeek Harness スイッチを終了";

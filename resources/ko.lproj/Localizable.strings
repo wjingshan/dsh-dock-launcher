@@ -16,6 +16,8 @@
 "menu.start" = "DSH 서비스 시작";
 "menu.animOff" = "애니메이션 끄기";
 "menu.animOn" = "애니메이션 켜기";
+"menu.notifyOff" = "시스템 알림 끄기";
+"menu.notifyOn" = "시스템 알림 켜기";
 "menu.logs" = "로그 열기";
 "menu.version" = "버전 %@";
 "menu.quit" = "DeepSeek Harness 스위치 종료";

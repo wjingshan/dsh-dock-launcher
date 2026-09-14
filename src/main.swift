@@ -109,6 +109,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         get { UserDefaults.standard.object(forKey: "animationsEnabled") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "animationsEnabled") }
     }
+    /// 是否投递系统通知（横幅）。默认开启；关掉后提醒仍有动画 / 程序坞弹跳 / 提示音三条通道。
+    private var notificationsEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "notificationsEnabled") }
+    }
+    /// 是否已申请过通知授权。授权申请**推迟到首次真正要投递通知时**，而不是启动就弹框。
+    private var notificationAuthRequested = false
 
     // UI
     private var statusItem: NSStatusItem!
@@ -117,7 +124,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: 生命周期
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildStatusItem()
-        requestNotificationPermission()
+        // 不再在启动时申请通知授权：推迟到首次真正要投递通知时（见 postNotification），
+        // 或用户主动打开「系统通知」开关时。这样不需要通知的人永远不会被弹权限框。
         log("启动：DeepSeek Harness 开关")
         startPromptAnimator()
         DispatchQueue.global(qos: .userInitiated).async {
@@ -248,6 +256,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !animationsEnabled { teardownRemindView() }   // 立即停掉正在跑的动画视图
         refreshUI(force: true)
     }
+    @objc private func toggleNotifications() {
+        notificationsEnabled = !notificationsEnabled
+        log("系统通知：\(notificationsEnabled ? "开启" : "关闭")")
+        // 用户主动打开开关 = 首次真正需要 → 这时才申请授权
+        if notificationsEnabled { requestNotificationAuthIfNeeded() }
+        refreshUI(force: true)
+    }
     @objc private func openLogAction() {
         NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/dsh-launcher.log"))
     }
@@ -347,6 +362,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         anim.target = self
         anim.image = sfSymbol("sparkles")
         m.addItem(anim)
+
+        // 系统通知开关：与动画开关并列。提醒共四条通道（动画/弹跳/提示音/通知），
+        // 不需要横幅的人可以在这里关掉，关掉后连授权框都不会弹。
+        let nt = NSMenuItem(title: notificationsEnabled ? L("menu.notifyOff") : L("menu.notifyOn"),
+                            action: #selector(toggleNotifications), keyEquivalent: "")
+        nt.target = self
+        nt.image = sfSymbol("bell")
+        m.addItem(nt)
 
         let env = NSMenuItem(title: L("env.menu"), action: #selector(envCheckAction), keyEquivalent: "")
         env.target = self
@@ -819,10 +842,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: 通知/声音/错误/日志
     private func postNotification(title: String, body: String) {
+        guard notificationsEnabled else { return }        // 开关关闭 → 不投递，也不申请授权
         let c = UNMutableNotificationContent(); c.title = title; c.body = body; c.sound = .default
-        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
+        let req = UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil)
+        let center = UNUserNotificationCenter.current()
+        if notificationAuthRequested {
+            center.add(req)
+            return
+        }
+        // 第一次投递：先申请授权、授权通过后再投这一条 ——
+        // 否则这条（往往是最重要的首次提醒）会因为授权还没就绪而被丢掉。
+        notificationAuthRequested = true
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            center.add(req)
+        }
     }
-    private func requestNotificationPermission() {
+    /// 首次真正需要投递通知时才申请授权（不再在启动时弹框）。
+    /// 系统只在第一次真正弹一次权限框，之后调用仅查询状态。
+    private func requestNotificationAuthIfNeeded() {
+        guard !notificationAuthRequested else { return }
+        notificationAuthRequested = true
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
     /// 播放某个用途的提示音（音效与重复次数由用户在右键菜单里配置）

@@ -38,7 +38,7 @@
 	<key>NSHumanReadableCopyright</key>
 	<string>DeepSeek Harness 开关启动器</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>DeepSeek Harness 开关需要读取你浏览器当前标签页（用于检测你已回到 127.0.0.1:3080 工作界面，从而自动停止 Dock 跳动提醒）。请允许它控制网页浏览器与「系统事件」。</string>
+	<string>DeepSeek Harness 开关只访问浏览器：读取其活动标签页地址，用来判断你是否已回到 127.0.0.1:3080 工作界面（以便自动停止程序坞跳动提醒），并在你点击图标时切回已打开的标签、而不是新开一个。它不控制其他任何应用；不允许也不影响基本使用（会退化为「浏览器在前台即视为已回到界面」）。</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>
