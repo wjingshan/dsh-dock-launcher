@@ -1,11 +1,15 @@
 /* DeepSeek Harness 开关 — 简体中文 */
 "app.name" = "DeepSeek Harness 开关";
 "state.off" = "已停止";
+"state.starting" = "启动中…";
 "state.running" = "运行中 · 空闲";
+"state.failed" = "启动失败";
 "state.busy" = "运行中 · 处理中";
 "state.reminding" = "运行中 · 待你看网页";
 "label.off" = "已停止";
+"label.starting" = "启动中";
 "label.idle" = "空闲";
+"label.failed" = "启动失败";
 "label.busy" = "处理中";
 "label.reminding" = "待回网页查看";
 "menu.status" = "状态：%@";
@@ -14,11 +18,14 @@
 "menu.ack" = "知道了，停止提醒";
 "menu.stop" = "停止 DSH 服务…";
 "menu.start" = "启动 DSH 服务";
+"menu.starting" = "正在启动 DSH 服务…";
+"menu.retry" = "重新启动 DSH 服务";
 "menu.animOff" = "关闭动画";
 "menu.animOn" = "打开动画";
 "menu.notifyOff" = "关闭系统通知";
 "menu.notifyOn" = "打开系统通知";
 "menu.logs" = "打开日志";
+"menu.apiKeys" = "编辑 API keys…";
 "menu.version" = "版本 v%@";
 "menu.quit" = "退出 DeepSeek Harness 开关";
 "alert.stop.title" = "停止 DeepSeek Harness 服务？";
@@ -34,6 +41,12 @@
 "notify.question.body" = "有一个选项在等你到 dsh 网页点选。";
 "error.startFailed" = "dsh 启动失败，日志 ~/Library/Logs/dsh-launcher.log";
 "error.notResponding" = "120s 后 127.0.0.1:3080 无响应，见 ~/Library/Logs/dsh-web.log";
+"error.keysFile" = "无法写入凭据文件：%@（请检查目录权限）";
+
+/* API keys（通用凭据入口） */
+"keys.title" = "API keys / 环境变量";
+"keys.body" = "已打开 %@\n\ndsh 启动时自动读取该文件并注入所有插件，未来新增的任何 API 同样生效。\n保存后需要重启 DSH 服务才会生效。";
+"keys.restart" = "重启 DSH 服务";
 
 /* 环境自检 */
 "env.menu" = "环境自检…";
@@ -46,8 +59,10 @@
 "env.dsh.missing" = "未找到 DeepSeek Harness（dsh）。请先安装 dsh 并运行一次 `dsh web` 完成初始化，详见 README。";
 "env.zstd.found" = "zstd 可用：%@（任务状态监测已启用）";
 "env.zstd.missing" = "未找到 zstd —— 任务状态监测与提醒不可用；可执行 `brew install zstd` 后重启本 App。";
-"env.apikey.found" = "已找到 DEEPSEEK_API_KEY";
-"env.apikey.missing" = "未找到 DEEPSEEK_API_KEY —— dsh 发消息会报 \"no API key\"。请在 ~/.zshrc 中 export，或在 dsh 网页的 Models 页保存。";
+"env.keys.file" = "凭据文件（dsh 启动时自动读取）：%@";
+"env.keys.found" = "已配置凭据：%@";
+"env.keys.none" = "未发现任何 API 凭据 —— 用菜单「编辑 API keys…」打开 %@，每行写入一个 KEY=VALUE 即可。";
+"env.apikey.missing" = "未配置 DEEPSEEK_API_KEY —— dsh 发消息会报 \"no API key\"；用菜单「编辑 API keys…」写入 $DSH_HOME/.env。";
 "env.bridge.found" = "dock-bridge 插件已生效 —— 直接从它的运行时文件读取带 token 的地址";
 "env.bridge.absent" = "dock-bridge 插件未安装（可选）—— 改为从 dsh 启动日志读取带 token 的地址";
 "menu.sound" = "提示音";

@@ -5,6 +5,8 @@ import CoreText
 
 enum LiveState {
     case off       // 服务已停止（红色，滑块在左）
+    case starting  // 正在启动服务（关→开的过程中，绿色正在注入）
+    case failed    // 启动失败（红色关闭态 + 圆钮上的红 ✕）
     case running   // 服务运行中、空闲（绿色，滑块在右）
     case busy      // 任务运行中（蓝色，滑块在右）
     case confirm   // 任务需要确认（橙色，滑块在右）
@@ -16,6 +18,12 @@ private func stateStyle(_ state: LiveState) -> (capsule: NSColor, knobRight: Boo
     switch state {
     case .off:
         // 关闭态：红色（断电隐喻），滑块拨到左侧
+        return (NSColor(calibratedRed: 0.92, green: 0.28, blue: 0.30, alpha: 1), false)
+    case .starting:
+        // 启动中：胶囊底色仍按"目标态"取绿（红色打底由动画自己画），滑块拨到右侧
+        return (NSColor(calibratedRed: 0.11, green: 0.79, blue: 0.42, alpha: 1), true)
+    case .failed:
+        // 启动失败：开关仍停在关闭（红、滑块在左），圆钮上另有红 ✕
         return (NSColor(calibratedRed: 0.92, green: 0.28, blue: 0.30, alpha: 1), false)
     case .running:
         return (NSColor(calibratedRed: 0.11, green: 0.79, blue: 0.42, alpha: 1), true)
@@ -84,7 +92,8 @@ func squirclePath(in rect: NSRect, n: CGFloat = 5.0) -> NSBezierPath {
 }
 
 /// 菜单栏图标（模板图）：单色、随菜单栏明暗与强调色自动适配；形状区分状态。
-/// 关闭=滑块在左；运行/进行中/提醒=滑块在右；提醒态右上加一个小圆点。
+/// 关闭/启动失败=滑块在左；启动中=滑块居中；运行/进行中/提醒=滑块在右；
+/// 启动失败在滑块上挖一个 ✕；提醒态右上加一个小圆点。
 func menuIconTemplate(_ state: LiveState, size: CGFloat = 18) -> NSImage {
     let img = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
         let pad = size * 0.13
@@ -98,11 +107,30 @@ func menuIconTemplate(_ state: LiveState, size: CGFloat = 18) -> NSImage {
         // 滑块（实心圆）
         let inset = cap.height * 0.16
         let knobSize = cap.height - inset * 2
-        let knobOnRight = (state != .off)
-        let knobRect = NSRect(x: knobOnRight ? cap.maxX - inset - knobSize : cap.minX + inset,
-                              y: cap.minY + inset, width: knobSize, height: knobSize)
+        // 滑块位置：关闭/失败在左、启动中居中（"拨到一半"）、其余在右
+        let knobX: CGFloat
+        switch state {
+        case .off, .failed: knobX = cap.minX + inset
+        case .starting:     knobX = cap.midX - knobSize / 2
+        default:            knobX = cap.maxX - inset - knobSize
+        }
+        let knobRect = NSRect(x: knobX, y: cap.minY + inset, width: knobSize, height: knobSize)
         NSColor.black.setFill()
         NSBezierPath(ovalIn: knobRect).fill()
+        // 启动失败：在滑块上挖出一个 ✕（模板图只有 alpha 有意义，用 clear 混合挖空）
+        if state == .failed, let ctx = NSGraphicsContext.current?.cgContext {
+            let arm = knobSize * 0.27
+            ctx.saveGState()
+            ctx.setBlendMode(.clear)
+            ctx.setLineWidth(knobSize * 0.15)
+            ctx.setLineCap(.round)
+            ctx.move(to: CGPoint(x: knobRect.midX - arm, y: knobRect.midY - arm))
+            ctx.addLine(to: CGPoint(x: knobRect.midX + arm, y: knobRect.midY + arm))
+            ctx.move(to: CGPoint(x: knobRect.midX - arm, y: knobRect.midY + arm))
+            ctx.addLine(to: CGPoint(x: knobRect.midX + arm, y: knobRect.midY - arm))
+            ctx.strokePath()
+            ctx.restoreGState()
+        }
         // 提醒态：右上角加小圆点
         if state == .confirm || state == .complete {
             let d = size * 0.26
@@ -315,9 +343,16 @@ func drawPulseIcon(rect: NSRect, glowC: NSColor, glow: CGFloat,
 /// Dock 图标（深色圆角底板 + 居中开关 + 品牌字）
 func dockIcon(_ state: LiveState, size: CGFloat = 128, variant: IconVariant = .dark) -> NSImage {
     let img = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
-        if state == .running {
+        switch state {
+        case .running:
             drawRunningIcon(rect: rect, variant: variant)
-        } else {
+        case .starting:
+            // 静态（动画关闭时）取「通电铺满 + 滑块正好在中间」的那一帧：
+            // 一眼看出是"正在切换"，不会和「运行 · 空闲」（滑块在右）混淆
+            drawStartingIcon(rect: rect, time: StartAnim.period * 0.75, variant: variant)
+        case .failed:
+            drawFailedIcon(rect: rect, intro: 1, variant: variant)
+        default:
             drawDockBackground(rect, size: size, variant: variant)
             let capRect = dockCapsuleRect(center: CGPoint(x: rect.midX, y: rect.midY), size: size)
             NSGraphicsContext.saveGraphicsState()
@@ -439,8 +474,229 @@ func drawBusyFlowIcon(rect: NSRect, phase: CGFloat, variant: IconVariant = .dark
     drawBrandLabelsIfAvailable(capRect: capRect, size: size, variant: variant)
 }
 
-// MARK: 「需要你介入」提醒 —— 右上角圆点脉冲
+// MARK: 「正在启动」/「启动失败」—— 点击图标到页面出现之间的这段空白
 
+/// 启动动画的时间轴参数（改这里即可微调节奏）
+enum StartAnim {
+    static let period: CGFloat = 1.10      // 白色滑块一个来回（左→右→左）的时长（秒）
+    static let power: CGFloat = 0.30       // 开场"通电"：绿色从左端扫满胶囊的时长（秒）
+    static let settle: CGFloat = 0.25      // 启动成功后滑块滑到右端并停住的归位时长（秒）
+    static let failedIntro: CGFloat = 0.55 // 失败入场（绿电退去 + 滑块归左 + 红 ✕ 弹入）时长（秒）
+    static let failedCross = NSColor(calibratedRed: 0.84, green: 0.11, blue: 0.16, alpha: 1)
+}
+
+/// 白色滑块在一个来回中的归一化位置：0 = 胶囊左端、1 = 右端。
+/// 用余弦（两端速度为零），所以每一次折返都是"软"的，不会在端点急停。
+func shuttleSwing(_ time: CGFloat) -> CGFloat {
+    let t = max(0, time)
+    let phase = (t / StartAnim.period).truncatingRemainder(dividingBy: 1)
+    return (1 - cos(phase * 2 * .pi)) / 2
+}
+
+/// 拨动手感：前 72% 平滑加速到目标附近，末段一次很小的回弹（"咔哒"落定），
+/// 且 p=1 时严格等于 1 —— 启动成功切回静态「运行 · 空闲」图标时滑块不会跳。
+private func flipEase(_ p: CGFloat) -> CGFloat {
+    let q = min(1, max(0, p))
+    let split: CGFloat = 0.72
+    if q <= split { return q * q * (3 - 2 * q) }
+    let s = (q - split) / (1 - split)
+    let gap = 1 - split * split * (3 - 2 * split)
+    return 1 - gap * cos(4.9 * s) * (1 - s) * (1 - s)
+}
+
+/// 回弹缓动（用于失败 ✕ 弹入；落定为 1，中途过冲约 10%）
+private func popEase(_ p: CGFloat) -> CGFloat {
+    let q = min(1, max(0, p))
+    let c1: CGFloat = 1.70158, c3 = c1 + 1
+    let u = q - 1
+    return 1 + c3 * u * u * u + c1 * u * u
+}
+
+/// 胶囊底（带投影）。投影参数与静态各态完全一致，`fill` 决定颜色（必须不透明）。
+/// 这里先铺一层 55% 黑再压上颜色 —— 与 drawCapsule 的做法一致，两层的投影叠加后
+/// 强度与静态图标逐像素相同：启动动画第一帧必须**完全等于**「关闭」图标，不能有半点跳变。
+private func drawCapsuleBase(capRect: NSRect, fill: NSColor, size: CGFloat, variant: IconVariant) {
+    let path = NSBezierPath(roundedRect: capRect, xRadius: capRect.height / 2, yRadius: capRect.height / 2)
+    NSGraphicsContext.saveGraphicsState()
+    let sh = NSShadow()
+    sh.shadowColor = NSColor(calibratedWhite: 0, alpha: variant == .dark ? 0.35 : 0.22)
+    sh.shadowBlurRadius = size * 0.06
+    sh.shadowOffset = NSSize(width: 0, height: -size * 0.04)
+    sh.set()
+    NSColor(calibratedWhite: 0.0, alpha: 0.55).setFill()
+    path.fill()
+    fill.setFill()
+    path.fill()
+    NSGraphicsContext.restoreGraphicsState()
+}
+
+/// 白色圆钮（带投影）。`centerX` / `scale` 可定制位置与大小；几何与 drawCapsule 的滑块一致。
+private func drawKnob(capRect: NSRect, centerX: CGFloat, scale: CGFloat = 1) {
+    let inset = capRect.height * 0.12
+    let d = (capRect.height - inset * 2) * scale
+    let rect = NSRect(x: centerX - d / 2, y: capRect.midY - d / 2, width: d, height: d)
+    NSGraphicsContext.saveGraphicsState()
+    let sh = NSShadow()
+    sh.shadowColor = NSColor(calibratedWhite: 0, alpha: 0.35)
+    sh.shadowBlurRadius = d * 0.10
+    sh.shadowOffset = NSSize(width: 0, height: -d * 0.08)
+    sh.set()
+    NSColor.white.setFill()
+    NSBezierPath(ovalIn: rect).fill()
+    NSGraphicsContext.restoreGraphicsState()
+}
+
+/// 圆钮上的红色 ✕：两笔圆头等宽描边，按钮径推导几何（✕ 始终落在钮圈内）。
+func drawKnobCross(center: CGPoint, knobSize: CGFloat, scale: CGFloat = 1, alpha: CGFloat = 1) {
+    let arm = knobSize * 0.28 * scale            // 半臂长
+    let armR = arm * sqrt(2) + knobSize * 0.080 * scale
+    let maxArm = armR < knobSize / 2 ? arm : arm * (knobSize / 2) / max(armR, 0.001)
+    let p = NSBezierPath()
+    p.move(to: CGPoint(x: center.x - maxArm, y: center.y - maxArm))
+    p.line(to: CGPoint(x: center.x + maxArm, y: center.y + maxArm))
+    p.move(to: CGPoint(x: center.x - maxArm, y: center.y + maxArm))
+    p.line(to: CGPoint(x: center.x + maxArm, y: center.y - maxArm))
+    p.lineWidth = knobSize * 0.16 * scale
+    p.lineCapStyle = .round
+    p.lineJoinStyle = .round
+    NSGraphicsContext.saveGraphicsState()
+    let sh = NSShadow()
+    sh.shadowColor = NSColor(calibratedWhite: 0, alpha: 0.22)
+    sh.shadowBlurRadius = knobSize * 0.05
+    sh.shadowOffset = NSSize(width: 0, height: -knobSize * 0.02)
+    sh.set()
+    StartAnim.failedCross.withAlphaComponent(alpha).setStroke()
+    p.stroke()
+    NSGraphicsContext.restoreGraphicsState()
+}
+
+/// 在任意画布区域绘制「正在启动」的一帧：
+/// ① 关闭态红胶囊打底（= 你点下去之前看到的画面，所以动画第一帧不会跳）；
+/// ② 开场 StartAnim.power 秒内绿色从左端扫满胶囊（"通电"），此后胶囊恒绿；
+/// ③ 白色滑块在整只胶囊里**左↔右往复**（余弦，两端速度为零），一个来回 StartAnim.period 秒；
+/// ④ 启动成功时不要再从"滑块当前在哪"跳一下：传 `settle` 画一段归位动画，
+///    让滑块从 `settleFrom` 平滑滑到右端并停住 —— 落定那一帧与「运行 · 空闲」图标完全一致。
+/// - Parameters:
+///   - time: 距开始启动的秒数（`settle` 为 nil 时使用）
+///   - settleFrom: 成功瞬间滑块所在的归一化位置（0…1）
+///   - settle: 非 nil 时画归位动画（0…1）
+func drawStartingIcon(rect: NSRect, time: CGFloat, variant: IconVariant = .dark,
+                      settleFrom: CGFloat = 0, settle: CGFloat? = nil) {
+    let size = min(rect.width, rect.height)
+    let capRect = dockCapsuleRect(center: CGPoint(x: rect.midX, y: rect.midY), size: size)
+    drawDockBackground(rect, size: size, variant: variant)
+    let offFill = stateStyle(.off).capsule
+    let onFill = stateStyle(.running).capsule
+
+    let ki = capRect.height * 0.12
+    let kd = capRect.height - ki * 2
+    let leftX = capRect.minX + ki + kd / 2
+    let rightX = capRect.maxX - ki - kd / 2
+
+    let fill: CGFloat      // 绿色注入进度 0…1
+    let swing: CGFloat     // 滑块位置 0…1
+    if let s = settle {
+        let q = min(1, max(0, s))
+        let e = 1 - pow(1 - q, 3)                                  // easeOutCubic：起步快、落定稳
+        fill = 1
+        swing = settleFrom + (1 - settleFrom) * e
+    } else {
+        fill = min(1, max(0, time) / StartAnim.power)
+        swing = shuttleSwing(time)
+    }
+
+    // 铺满后用**整只绿色胶囊**绘制（而不是"红底 + 绿色裁剪覆盖"）：后者在胶囊的抗锯齿边缘
+    // 会留下 1px 的暖色/绿混合边，成功归位落定切到静态图标时能看出那圈色边（实测最大差 54/255）。
+    let full = fill >= 0.999
+    drawCapsuleBase(capRect: capRect, fill: full ? onFill : offFill, size: size, variant: variant)
+    if !full, fill > 0 {
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(roundedRect: capRect, xRadius: capRect.height / 2,
+                     yRadius: capRect.height / 2).addClip()
+        let fillEnd = capRect.minX + capRect.width * fill
+        onFill.setFill()
+        NSRect(x: capRect.minX, y: capRect.minY,
+               width: fillEnd - capRect.minX, height: capRect.height).fill()
+        // 注入前缘柔光：通电扫过时让边界不是一条硬边
+        if let g = NSGradient(colors: [NSColor(calibratedWhite: 1, alpha: 0),
+                                       NSColor(calibratedWhite: 1, alpha: 0.42),
+                                       NSColor(calibratedWhite: 1, alpha: 0)]) {
+            let w = capRect.height * 0.55
+            g.draw(in: NSRect(x: fillEnd - w / 2, y: capRect.minY, width: w, height: capRect.height), angle: 0)
+        }
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    drawKnob(capRect: capRect, centerX: leftX + (rightX - leftX) * swing)
+    drawBrandLabelsIfAvailable(capRect: capRect, size: size, variant: variant)
+}
+
+/// 在任意画布区域绘制「启动失败」：关闭态红胶囊 + 白色圆钮上的**红色 ✕**。
+/// 入场把"启动中"的松弛接回来，不做硬切：
+///   ① 绿色从右端**退去**（电没通上），露出下面的关闭红；
+///   ② 滑块从失败瞬间所在位置**滑回左端**；
+///   ③ 红 ✕ 带一次回弹**弹入**，同时胶囊红闪一下。之后静止。
+/// - Parameters:
+///   - intro: 入场进度 0…1（1 = 静止的失败态）
+///   - fromFill / fromSwing: 失败瞬间「启动中」动画的注入进度与滑块位置（缺省 1 = 曾全绿、滑块在右端）
+func drawFailedIcon(rect: NSRect, intro: CGFloat = 1, fromFill: CGFloat = 1, fromSwing: CGFloat = 1,
+                    variant: IconVariant = .dark) {
+    let size = min(rect.width, rect.height)
+    let capRect = dockCapsuleRect(center: CGPoint(x: rect.midX, y: rect.midY), size: size)
+    drawDockBackground(rect, size: size, variant: variant)
+
+    let k = min(1, max(0, intro))
+    func smoothstep(_ x: CGFloat) -> CGFloat { x * x * (3 - 2 * x) }
+    // ① 绿电退去（占入场前 60%）
+    let fill = k < 1 ? min(1, max(0, fromFill)) * (1 - smoothstep(min(1, k / 0.60))) : 0
+    // ② 滑块归左（占入场前 65%）
+    let swing = k < 1 ? min(1, max(0, fromSwing)) * (1 - smoothstep(min(1, k / 0.65))) : 0
+    // ③ 红闪（在 ✕ 落定前后最亮，之后收回；静止态为 0）
+    let flash = k < 1 ? 0.24 * sin(.pi * min(1, k / 0.90)) : 0
+
+    let offFill = stateStyle(.off).capsule
+    let base = flash > 0.001 ? (offFill.blended(withFraction: flash, of: .white) ?? offFill) : offFill
+    // 与 drawStartingIcon 同一条规则：绿电还没退掉时整只胶囊按绿色绘制，
+    // 这样"失败第 0 帧"与"启动中当时那一帧"逐像素一致，失败入场不会硬切。
+    let stillFull = fill >= 0.999
+    drawCapsuleBase(capRect: capRect, fill: stillFull ? stateStyle(.running).capsule : base,
+                    size: size, variant: variant)
+
+    if !stillFull, fill > 0.001 {
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(roundedRect: capRect, xRadius: capRect.height / 2,
+                     yRadius: capRect.height / 2).addClip()
+        stateStyle(.running).capsule.setFill()
+        let fillEnd = capRect.minX + capRect.width * fill
+        NSRect(x: capRect.minX, y: capRect.minY,
+               width: fillEnd - capRect.minX, height: capRect.height).fill()
+        // 与 drawStartingIcon 同一道前缘柔光：失败第 0 帧才能和"启动中当时那一帧"完全对上
+        if fill < 1, let g = NSGradient(colors: [NSColor(calibratedWhite: 1, alpha: 0),
+                                                 NSColor(calibratedWhite: 1, alpha: 0.42),
+                                                 NSColor(calibratedWhite: 1, alpha: 0)]) {
+            let w = capRect.height * 0.55
+            g.draw(in: NSRect(x: fillEnd - w / 2, y: capRect.minY, width: w, height: capRect.height), angle: 0)
+        }
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    let inset = capRect.height * 0.12
+    let knobSize = capRect.height - inset * 2
+    let leftX = capRect.minX + inset + knobSize / 2
+    let rightX = capRect.maxX - inset - knobSize / 2
+    let knobX = leftX + (rightX - leftX) * swing
+    drawKnob(capRect: capRect, centerX: knobX)
+
+    // ✕：从入场的 12% 处开始弹入（失败信号尽早出现），到 75% 落定
+    let ck = min(1, max(0, (k - 0.12) / 0.63))
+    let scale = k < 1 ? 0.55 + 0.45 * popEase(ck) : 1
+    drawKnobCross(center: CGPoint(x: knobX, y: capRect.midY), knobSize: knobSize,
+                  scale: scale, alpha: min(1, ck * 1.8))
+
+    drawBrandLabelsIfAvailable(capRect: capRect, size: size, variant: variant)
+}
+
+// MARK: 「需要你介入」提醒 —— 右上角圆点脉冲
 /// 在任意画布上绘制「圆点脉冲」提醒：正常运行图标 + 右上角圆点（带一层裁剪在底板内的柔和扩散）。
 /// 几何参数经出界量测：圆点留 margin、扩散光裁剪在圆角内，整枚图标不会超出画布。
 /// - Parameter pulse: 脉冲缩放（约 0.86…1.12），由 animBeat() 的双频呼吸驱动

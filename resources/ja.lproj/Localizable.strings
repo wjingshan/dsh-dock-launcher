@@ -1,11 +1,15 @@
 /* DeepSeek Harness スイッチ — 日本語 */
 "app.name" = "DeepSeek Harness スイッチ";
 "state.off" = "停止中";
+"state.starting" = "起動中…";
 "state.running" = "実行中 · アイドル";
+"state.failed" = "起動に失敗";
 "state.busy" = "実行中 · 処理中";
 "state.reminding" = "実行中 · 確認してください";
 "label.off" = "停止中";
+"label.starting" = "起動中";
 "label.idle" = "アイドル";
+"label.failed" = "起動に失敗";
 "label.busy" = "処理中";
 "label.reminding" = "Web UI を確認";
 "menu.status" = "状態：%@";
@@ -14,11 +18,14 @@
 "menu.ack" = "了解、通知を停止";
 "menu.stop" = "DSH サービスを停止…";
 "menu.start" = "DSH サービスを起動";
+"menu.starting" = "DSH サービスを起動しています…";
+"menu.retry" = "DSH サービスの起動を再試行";
 "menu.animOff" = "アニメーションをオフ";
 "menu.animOn" = "アニメーションをオン";
 "menu.notifyOff" = "システム通知をオフ";
 "menu.notifyOn" = "システム通知をオン";
 "menu.logs" = "ログを開く";
+"menu.apiKeys" = "API キーを編集…";
 "menu.version" = "バージョン %@";
 "menu.quit" = "DeepSeek Harness スイッチを終了";
 "alert.stop.title" = "DeepSeek Harness サービスを停止しますか？";
@@ -34,6 +41,12 @@
 "notify.question.body" = "dsh の Web UI で選ぶ項目があります。";
 "error.startFailed" = "dsh の起動に失敗しました。~/Library/Logs/dsh-launcher.log を確認してください";
 "error.notResponding" = "120 秒経過しても 127.0.0.1:3080 が応答しません。~/Library/Logs/dsh-web.log を確認してください";
+"error.keysFile" = "認証情報ファイルに書き込めません：%@（ディレクトリの権限を確認してください）";
+
+/* API キー（汎用の認証情報入口） */
+"keys.title" = "API キー / 環境変数";
+"keys.body" = "%@ を開きました\n\ndsh は起動時にこのファイルを読み込み、すべてのプラグインに注入します。今後追加される API も同じ方法で使えます。\n変更は DSH サービスの再起動後に有効になります。";
+"keys.restart" = "DSH サービスを再起動";
 
 /* 環境チェック */
 "env.menu" = "環境チェック…";
@@ -46,8 +59,10 @@
 "env.dsh.missing" = "DeepSeek Harness（dsh）が見つかりません。先に dsh をインストールし、一度 `dsh web` を実行してください。詳細は README を参照。";
 "env.zstd.found" = "zstd が利用可能：%@（タスク監視が有効）";
 "env.zstd.missing" = "zstd が見つかりません — タスク監視と通知は無効です。`brew install zstd` を実行して本アプリを再起動してください。";
-"env.apikey.found" = "DEEPSEEK_API_KEY を検出";
-"env.apikey.missing" = "DEEPSEEK_API_KEY が見つかりません — dsh で「no API key」エラーになります。~/.zshrc に export するか、dsh の Models ページで保存してください。";
+"env.keys.file" = "認証情報ファイル（dsh が起動時に読み込み）：%@";
+"env.keys.found" = "設定済みの認証情報：%@";
+"env.keys.none" = "API 認証情報が見つかりません — メニューの「API キーを編集…」で %@ に 1 行ずつ KEY=VALUE を記入してください。";
+"env.apikey.missing" = "DEEPSEEK_API_KEY が未設定です — dsh で \"no API key\" になります。メニューの「API キーを編集…」で $DSH_HOME/.env に記入してください。";
 "env.bridge.found" = "dock-bridge プラグインが有効 — ランタイムファイルからトークン付き URL を取得します";
 "env.bridge.absent" = "dock-bridge プラグイン未導入（任意）— dsh の起動ログからトークン付き URL を読み取ります";
 "menu.sound" = "通知サウンド";

@@ -6,10 +6,12 @@ import UserNotifications
 let kWebURL = URL(string: "http://127.0.0.1:3080")!
 
 enum DisplayState: Equatable {
-    case off, running, busy, reminding
+    case off, starting, settling, failed, running, busy, reminding
     var live: LiveState {
         switch self {
         case .off: return .off
+        case .starting, .settling: return .starting
+        case .failed: return .failed
         case .running: return .running
         case .busy: return .busy
         case .reminding: return .confirm
@@ -51,6 +53,31 @@ final class BusyFlowView: NSView {
     }
 }
 
+/// Dock「正在启动」动画视图：白色滑块在胶囊里左右往复 + 开场绿色通电。
+/// 点下图标到页面出现之间的这几秒，就靠它给出反馈；成功时接着播一段归位（settle）。
+final class StartingView: NSView {
+    var time: CGFloat = 0
+    var settleFrom: CGFloat = 0
+    var settle: CGFloat? = nil      // 非 nil = 正在播"启动成功后的归位"
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        drawStartingIcon(rect: dockAnimRect(bounds), time: time, variant: currentIconVariant(),
+                         settleFrom: settleFrom, settle: settle)
+    }
+}
+
+/// Dock「启动失败」动画视图：绿电退去 + 滑块归左 + 圆钮上的红色 ✕（之后静止）
+final class FailedView: NSView {
+    var intro: CGFloat = 1
+    var fromFill: CGFloat = 1
+    var fromSwing: CGFloat = 1
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        drawFailedIcon(rect: dockAnimRect(bounds), intro: intro,
+                       fromFill: fromFill, fromSwing: fromSwing, variant: currentIconVariant())
+    }
+}
+
 /// Dock「需要你介入」提醒视图：变形（文字分开 + 白圆点放大成正圆 + 蓝色问号浮现）→ 亮度呼吸循环 → 反向收回
 final class AskMorphView: NSView {
     var time: CGFloat = 0
@@ -81,6 +108,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var remindKind: RemindKind? = nil
     private var serviceRunning = false
     private var turnActive = false
+    // 启动中 / 启动失败：点击图标到页面出现之间的这段空白，由这两态负责给反馈
+    private var starting = false
+    private var startingSince: TimeInterval = 0
+    private var startFailedAt: TimeInterval? = nil
+    private var failedIntroPainted = false
+    private var failedFromFill: CGFloat = 1      // 失败瞬间：绿色注入到哪
+    private var failedFromSwing: CGFloat = 1     // 失败瞬间：滑块在哪（0=左端 1=右端）
+    private var settleAt: TimeInterval? = nil    // 启动成功后的归位动画起点
+    private var settleFrom: CGFloat = 0          // 成功瞬间滑块在哪（归位起点）
     private var cursors: [String: SessionCursor] = [:]
     private var monitorQueue = DispatchQueue(label: "dsh.monitor", qos: .background)
     private var tickSeq = 0                     // 监测拍序号（用于目录枚举降频）
@@ -126,7 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         buildStatusItem()
         // 不再在启动时申请通知授权：推迟到首次真正要投递通知时（见 postNotification），
         // 或用户主动打开「系统通知」开关时。这样不需要通知的人永远不会被弹权限框。
-        log("启动：DeepSeek Harness 开关")
+        log("启动：DeepSeek Harness 开关 v\(appVersion)（build \((Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "-")）")
         startPromptAnimator()
         DispatchQueue.global(qos: .userInitiated).async {
             let up = ServiceManager.isRunning()
@@ -207,6 +243,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let line: String = {
             switch displayState {
             case .off: return L("state.off")
+            case .starting, .settling: return L("state.starting")
+            case .failed: return L("state.failed")
             case .running: return L("state.running")
             case .busy: return L("state.busy")
             case .reminding: return L("state.reminding")
@@ -216,7 +254,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         s.isEnabled = false
         m.addItem(s)
         m.addItem(.separator())
-        if running {
+        if displayState == .starting || displayState == .settling {
+            // 启动中：给出不可点的状态项，避免重复触发（重复点击也会被 startService 忽略）
+            let busy = NSMenuItem(title: L("menu.starting"), action: nil, keyEquivalent: "")
+            busy.isEnabled = false
+            m.addItem(busy)
+        } else if running {
             let o = NSMenuItem(title: L("menu.openPageShort"), action: #selector(openWebAction), keyEquivalent: "")
             o.target = self; m.addItem(o)
             m.addItem(.separator())
@@ -228,13 +271,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let r = NSMenuItem(title: L("menu.stop"), action: #selector(toggleMenu), keyEquivalent: "")
             r.target = self; m.addItem(r)
         } else {
-            let r = NSMenuItem(title: L("menu.start"), action: #selector(toggleMenu), keyEquivalent: "")
+            // 上一次启动失败 → 这一项读作「重新启动」，让红 ✕ 有明确的下一步
+            let title = displayState == .failed ? L("menu.retry") : L("menu.start")
+            let r = NSMenuItem(title: title, action: #selector(toggleMenu), keyEquivalent: "")
             r.target = self; m.addItem(r)
         }
         let envItem = NSMenuItem(title: L("env.menu"), action: #selector(envCheckAction), keyEquivalent: "")
         envItem.target = self
         envItem.image = sfSymbol("stethoscope")
         m.addItem(envItem)
+        m.addItem(apiKeysMenuItem())
         m.addItem(soundSettingsMenuItem())
         let lg = NSMenuItem(title: L("menu.logs"), action: #selector(openLogAction), keyEquivalent: "")
         lg.target = self; m.addItem(lg)
@@ -253,7 +299,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleAnimations() {
         animationsEnabled = !animationsEnabled
         log("动画：\(animationsEnabled ? "开启" : "关闭")")
-        if !animationsEnabled { teardownRemindView() }   // 立即停掉正在跑的动画视图
+        if !animationsEnabled { settleAt = nil; teardownRemindView() }   // 立即停掉正在跑的动画视图
         refreshUI(force: true)
     }
     @objc private func toggleNotifications() {
@@ -282,6 +328,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openSoundSettingsAction() {
         SoundCenter.shared.stop()          // 打开设置时先停掉正在重复的提示音
         SoundSettingsWindow.shared.show()
+    }
+
+    // MARK: - API keys（通用凭据入口）
+
+    private func apiKeysMenuItem() -> NSMenuItem {
+        let it = NSMenuItem(title: L("menu.apiKeys"), action: #selector(apiKeysAction), keyEquivalent: "")
+        it.target = self
+        it.image = sfSymbol("key")
+        return it
+    }
+
+    /// 打开 dsh 的用户级环境文件 `$DSH_HOME/.env`。
+    ///
+    /// 这里刻意不做“key 管理界面”：dsh 自己在启动时读取该文件（loadLayeredEnv），
+    /// 所以它对所有 profile、所有启动方式都生效，且以后接入任何新 API 只要加一行即可，
+    /// 本 App 无需枚举 key 名、也无需跟着发版。改动后需要重启 dsh 服务才会生效。
+    @objc private func apiKeysAction() {
+        guard let url = ServiceManager.ensureEnvFileTemplate() else {
+            noteError(String(format: L("error.keysFile"), ServiceManager.envFileURL().path))
+            return
+        }
+        log("打开 API keys 文件：\(url.path)")
+        NSWorkspace.shared.open(url)
+        let a = NSAlert()
+        a.messageText = L("keys.title")
+        a.informativeText = String(format: L("keys.body"), url.path)
+        a.addButton(withTitle: L("button.ok"))
+        guard serviceRunning else { a.runModal(); return }
+        a.addButton(withTitle: L("keys.restart"))
+        if a.runModal() == .alertSecondButtonReturn {
+            stopService()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { self.startService(withBrowser: false) }
+        }
     }
 
     // MARK: - 关于
@@ -331,7 +410,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 右键点图标 = 鼠标已经在图标上 → 停掉「一直重复」的提示音
         SoundCenter.shared.stop()
 
-        if running {
+        if displayState == .starting || displayState == .settling {
+            let busy = NSMenuItem(title: L("menu.starting"), action: nil, keyEquivalent: "")
+            busy.isEnabled = false
+            busy.image = sfSymbol("arrow.triangle.2.circlepath")
+            m.addItem(busy)
+        } else if running {
             let open = NSMenuItem(title: L("menu.openPage"), action: #selector(openWebAction), keyEquivalent: "")
             open.target = self
             open.image = sfSymbol("globe")
@@ -350,9 +434,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             stop.image = sfSymbol("stop.circle")
             m.addItem(stop)
         } else {
-            let start = NSMenuItem(title: L("menu.start"), action: #selector(toggleMenu), keyEquivalent: "")
+            let title = displayState == .failed ? L("menu.retry") : L("menu.start")
+            let start = NSMenuItem(title: title, action: #selector(toggleMenu), keyEquivalent: "")
             start.target = self
-            start.image = sfSymbol("play.circle")
+            start.image = displayState == .failed ? sfSymbol("arrow.clockwise") : sfSymbol("play.circle")
             m.addItem(start)
         }
 
@@ -375,6 +460,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         env.target = self
         env.image = sfSymbol("stethoscope")
         m.addItem(env)
+        m.addItem(apiKeysMenuItem())
         m.addItem(soundSettingsMenuItem())
         let log = NSMenuItem(title: L("menu.logs"), action: #selector(openLogAction), keyEquivalent: "")
         log.target = self
@@ -402,34 +488,93 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startService(withBrowser open: Bool) {
+        // 已经在启动中：忽略重复点击（启动成功后仍会按第一次的意图打开页面）
+        guard !starting else {
+            log("已在启动中，忽略这次点击")
+            return
+        }
+        beginStarting()
         DispatchQueue.global(qos: .userInitiated).async {
             if ServiceManager.isRunning() {
-                DispatchQueue.main.async { self.serviceRunning = true; self.refreshUI(); if open { self.openBrowser() } }
+                DispatchQueue.main.async { self.startingSucceeded(open: open, started: false) }
                 return
             }
             guard ServiceManager.findDsh() != nil else {
-                DispatchQueue.main.async { self.noteError(self.L("env.dsh.missing")) }
+                DispatchQueue.main.async { self.startingFailed(self.L("env.dsh.missing")) }
                 return
             }
             self.log("后台启动 dsh web …")
             guard ServiceManager.start() else {
-                DispatchQueue.main.async { self.noteError(self.L("error.startFailed")) }
+                DispatchQueue.main.async { self.startingFailed(self.L("error.startFailed")) }
                 return
             }
-            if ServiceManager.keyProvisioned { self.log("已注入 DEEPSEEK_API_KEY") } else { self.log("未找到 DEEPSEEK_API_KEY") }
+            let injected = ServiceManager.injectedCredentialNames
+            if injected.isEmpty {
+                self.log("凭据：未从 shell 配置补注入（推荐用菜单「\(self.L("menu.apiKeys"))」写入 \(ServiceManager.envFileURL().path)）")
+            } else {
+                self.log("凭据：已从 shell 配置补注入 \(injected.joined(separator: ", "))")
+            }
             self.log("等待服务就绪…")
             if ServiceManager.waitUntilRunning(timeout: 120) {
-                DispatchQueue.main.async {
-                    self.serviceRunning = true
-                        self.refreshUI()
-                    self.playSound(.serviceStart)
-                    if open { self.openBrowser() }
-                }
+                DispatchQueue.main.async { self.startingSucceeded(open: open, started: true) }
             } else {
-                DispatchQueue.main.async { self.noteError(self.L("error.notResponding")) }
+                DispatchQueue.main.async { self.startingFailed(self.L("error.notResponding")) }
             }
         }
     }
+
+    // MARK: 启动反馈（启动中动画 / 失败红 ✕）
+
+    /// 点下图标 → 立刻切到「启动中」动画，填补等待页面出现的这几秒
+    private func beginStarting() {
+        starting = true
+        startFailedAt = nil
+        settleAt = nil               // 新的一次启动让上一次的归位作废
+        failedIntroPainted = false
+        startingSince = Date().timeIntervalSinceReferenceDate
+        log("开始启动：图标切换为「启动中」动画（绿色通电 \(StartAnim.power)s，滑块一个来回 \(StartAnim.period)s）")
+        refreshUI(force: true)
+    }
+
+    private func startingSucceeded(open: Bool, started: Bool) {
+        // 从"滑块当前在哪"接着滑到右端（0.25s），别让它在成功瞬间跳一下
+        let now = Date().timeIntervalSinceReferenceDate
+        settleFrom = starting ? shuttleSwing(CGFloat(now - startingSince)) : 1
+        settleAt = now
+        starting = false
+        startFailedAt = nil
+        serviceRunning = true
+        log(started ? "启动成功：服务已就绪" : "服务已在运行，直接回到页面")
+        refreshUI(force: true)
+        if started { playSound(.serviceStart) }   // 本来就已在运行时不再响「服务启动」音
+        if open { openBrowser() }
+    }
+
+    private func startingFailed(_ message: String) {
+        // 记下失败瞬间「启动中」动画画到哪了：失败入场要从此处把绿电退掉、把滑块收回来
+        let now = Date().timeIntervalSinceReferenceDate
+        if starting {
+            let el = CGFloat(now - startingSince)
+            failedFromFill = min(1, max(0, el / StartAnim.power))
+            failedFromSwing = shuttleSwing(el)
+        } else {
+            failedFromFill = 1
+            failedFromSwing = 1
+        }
+        starting = false
+        settleAt = nil
+        startFailedAt = now
+        failedIntroPainted = false
+        log("启动失败：\(message)（绿电退去、滑块归左，圆钮上是红色 ✕）")
+        refreshUI(force: true)
+        animBeat()                       // 立即渲染失败入场的首帧
+        // 弹窗推迟到入场动画播完之后：NSAlert 的模态循环跑在 NSModalPanelRunLoopMode 下，
+        // 默认模式的定时器在弹窗期间不触发，立刻弹窗会让红 ✕ 定格在半路。
+        DispatchQueue.main.asyncAfter(deadline: .now() + Double(StartAnim.failedIntro) + 0.15) {
+            self.noteError(message)
+        }
+    }
+
     private func openBrowser() {
         // 优先使用带 token 的地址（不带 token 访问会 401 要求认证）
         let target = ServiceManager.webURLWithToken() ?? kWebURL
@@ -452,6 +597,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.serviceRunning = false
                     self.remindKind = nil
                     self.turnActive = false
+                    self.startFailedAt = nil       // 主动停止：旧的红 ✕ 不该再出现
                     self.cursors.removeAll()
                         self.playSound(.serviceStop)
                 }
@@ -492,10 +638,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 动画帧：busy 蓝绿流动 / reminding 呼吸发光（仅动画开启时运行）
+    /// 动画帧：busy 蓝绿流动 / reminding 呼吸发光 / starting 拨动与扫光（仅动画开启时运行）
     private func animBeat() {
-        guard serviceRunning, animationsEnabled else { return }
+        guard animationsEnabled else { return }
         let t = Date().timeIntervalSinceReferenceDate
+
+        // 「启动中」：通电段与最初一个来回满帧（这段时间用户正盯着看），之后降到 30fps
+        // —— 往复是实心滑块的位移，比稳态那些软渐变更容易看出抽帧，所以比 15fps 高一档。
+        if displayState == .starting {
+            if t - startingSince > Double(StartAnim.power + StartAnim.period) {
+                animFrameTick += 1
+                if animFrameTick % 2 != 0 { return }
+            }
+            guard let v = ensureStartingView() else { return }
+            v.time = CGFloat(t - startingSince)
+            v.settle = nil
+            v.needsDisplay = true
+            NSApp.dockTile.display()
+            return
+        }
+
+        // 「归位」：启动成功后的 0.25s，滑块从成功瞬间所在位置滑到右端停住，
+        // 落定那一帧与「运行 · 空闲」图标一致 —— 不做这一步，成功瞬间滑块会跳一下。
+        if displayState == .settling, let t0 = settleAt {
+            let el = t - t0
+            if el >= Double(StartAnim.settle) {
+                settleAt = nil
+                refreshUI(force: true)              // 归位完成 → 交给静态「运行 · 空闲」
+                return
+            }
+            guard let v = ensureStartingView() else { return }
+            v.settleFrom = settleFrom
+            v.settle = CGFloat(el / Double(StartAnim.settle))
+            v.needsDisplay = true
+            NSApp.dockTile.display()
+            return
+        }
+
+        // 「启动失败」：入场只播一次（绿电退去 + 滑块归左 + ✕ 弹入），播完就停
+        // —— 静止的错误态没有理由一直重绘。
+        if displayState == .failed, let f = startFailedAt {
+            let el = t - f
+            if el < Double(StartAnim.failedIntro) || !failedIntroPainted {
+                failedIntroPainted = el >= Double(StartAnim.failedIntro)
+                guard let v = ensureFailedView() else { return }
+                v.intro = CGFloat(min(1, el / Double(StartAnim.failedIntro)))
+                v.fromFill = failedFromFill
+                v.fromSwing = failedFromSwing
+                v.needsDisplay = true
+                NSApp.dockTile.display()
+            }
+            return
+        }
+
+        guard serviceRunning else { return }
         // 稳态循环抽帧（60fps → 15fps，步长见 steadyFrameStride）：
         // busy 色带每秒一个周期、呼吸/脉冲周期 1~3s，都是软渐变，抽帧后看不出台阶；
         // 而变形 intro(0.9s) 与反向收尾 outro(0.42s) 是快速过渡，保持满帧以免看出台阶。
@@ -647,11 +843,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var remindView: RemindView?
     private var busyView: BusyFlowView?
     private var dotView: DotPulseView?
+    private var startingView: StartingView?
+    private var failedView: FailedView?
 
     private func ensureRemindView() -> RemindView? {
         if remindView == nil {
             busyView = nil
             dotView = nil
+            startingView = nil
+            failedView = nil
             let v = RemindView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
             NSApp.dockTile.contentView = v
             remindView = v
@@ -663,6 +863,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if dotView == nil {
             busyView = nil
             remindView = nil
+            startingView = nil
+            failedView = nil
             let v = DotPulseView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
             NSApp.dockTile.contentView = v
             dotView = v
@@ -675,6 +877,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             busyView = nil
             remindView = nil
             dotView = nil
+            startingView = nil
+            failedView = nil
             let v = AskMorphView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
             NSApp.dockTile.contentView = v
             morphView = v
@@ -687,6 +891,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             remindView = nil
             dotView = nil
             morphView = nil
+            startingView = nil
+            failedView = nil
             let v = BusyFlowView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
             NSApp.dockTile.contentView = v
             busyView = v
@@ -694,13 +900,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return busyView
     }
 
-    /// 结束提醒/动画：切回静态图标（撤销 contentView，避免 Dock 停留在动画帧）
-    private func teardownRemindView() {
-        if remindView != nil || busyView != nil || dotView != nil || morphView != nil {
+    /// 启动中动画视图（contentView 一次建好，之后每帧只改 time）
+    private func ensureStartingView() -> StartingView? {
+        if startingView == nil {
             remindView = nil
             busyView = nil
             dotView = nil
             morphView = nil
+            failedView = nil
+            let v = StartingView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
+            NSApp.dockTile.contentView = v
+            startingView = v
+        }
+        return startingView
+    }
+
+    /// 启动失败视图（同上：入场动画只改 intro）
+    private func ensureFailedView() -> FailedView? {
+        if failedView == nil {
+            remindView = nil
+            busyView = nil
+            dotView = nil
+            morphView = nil
+            startingView = nil
+            let v = FailedView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
+            NSApp.dockTile.contentView = v
+            failedView = v
+        }
+        return failedView
+    }
+
+    /// 结束提醒/动画：切回静态图标（撤销 contentView，避免 Dock 停留在动画帧）
+    private func teardownRemindView() {
+        if remindView != nil || busyView != nil || dotView != nil || morphView != nil
+            || startingView != nil || failedView != nil {
+            remindView = nil
+            busyView = nil
+            dotView = nil
+            morphView = nil
+            startingView = nil
+            failedView = nil
             NSApp.dockTile.contentView = nil
             NSApp.applicationIconImage = dockIcon(.running, variant: currentIconVariant())   // 立即回到正常静态图标
             NSApp.dockTile.display()                          // 强制 Dock 刷新，杜绝残留动画帧
@@ -722,10 +961,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func tick() {     // monitorQueue
         let running = ServiceManager.isRunning()
         if !running {
-            DispatchQueue.main.async { if self.displayState != .off { self.remindKind = nil; self.turnActive = false; self.cursors.removeAll(); self.refreshUI() } }
+            DispatchQueue.main.async {
+                // 服务掉线：清掉任务态并切回「关闭」。启动中/启动失败由 startService
+                // 的状态机负责，这里不抢（否则红 ✕ 会被 0.4s 一拍地冲掉）。
+                if self.starting { return }
+                if self.serviceRunning || self.startFailedAt != nil {
+                    self.serviceRunning = false
+                    self.remindKind = nil
+                    self.turnActive = false
+                    self.cursors.removeAll()
+                    self.refreshUI()
+                }
+            }
             return
         }
         // 扫描事件（缺 zstd 时跳过：仅显示服务状态，不崩溃）
+        // 服务在运行 → 先把它同步进状态。服务可能在别处被拉起（终端 / 别的 App / 上一次
+        // 启动其实成功了只是我们没探到），早期版本只在 startService 里置位，于是「外部启动」
+        // 永远不被识别、启动失败的红 ✕ 会一直挂着。这里以实测为准补齐，且不依赖 zstd。
+        DispatchQueue.main.async {
+            if !self.starting, !self.serviceRunning {
+                self.serviceRunning = true
+                if self.startFailedAt != nil {
+                    self.startFailedAt = nil
+                    self.log("探测到服务已在运行，撤销「启动失败」")
+                } else {
+                    self.log("探测到服务已在运行（外部启动）")
+                }
+                self.refreshUI()
+            }
+        }
         guard TaskMonitor.zstdExecutablePath() != nil else { return }
         var confirmSeen = false, questionSeen = false, questionMultiSeen = false, completeSeen = false, busySeen = false, resumedSeen = false
         // 目录枚举降频到每 5 拍（≈2s）一次：FileManager.enumerator 要 open + getattrlistbulk
@@ -786,7 +1051,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func computedState() -> DisplayState {
-        guard serviceRunning else { return .off }
+        // 启动中/归位优先：启动中时 serviceRunning 还是 false，但图标必须立刻给出反馈；
+        // 归位期间 serviceRunning 已经为 true，也要先把这 0.25s 的动画播完再交给静态图标。
+        if starting { return .starting }
+        if settleAt != nil { return .settling }
+        guard serviceRunning else { return startFailedAt == nil ? .off : .failed }
         // 仅以 remindKind 作为提醒态依据；displayState 是“展示结果”，不能当输入，
         // 否则 dismiss 清空 remindKind 后、displayState 未更新的瞬间会误判仍“在提醒”而重新点亮。
         if remindKind != nil { return .reminding }
@@ -797,6 +1066,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastUISignature: String?
 
     private func refreshUI(force: Bool = false) {
+        // 服务在运行 ⇒ 之前那次「启动失败」已经翻篇（否则下次停服务时旧红 ✕ 会诈尸）
+        if serviceRunning, startFailedAt != nil { startFailedAt = nil }
         let s = computedState()
         let sig = "\(s)|\(String(describing: remindKind))|\(serviceRunning)"
         if !force, sig == lastUISignature { return }
@@ -806,28 +1077,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.image = menuIconTemplate(s.live, size: 17)
         statusItem.button?.toolTip = L("app.name") + " · " + stateLabel(s)
         statusItem.button?.menu = buildMenu()
-        if s == .reminding {
+        switch s {
+        case .reminding:
             if animationsEnabled {
                 animBeat()                                // 立即渲染一帧提醒动画（后续由 30fps 定时器持续驱动）
             } else {
                 teardownRemindView()
                 NSApp.applicationIconImage = dockIcon(.confirm, variant: currentIconVariant())   // 动画关闭：静态橙色提醒
             }
-        } else if s == .busy {
+        case .busy:
             if animationsEnabled {
                 animBeat()                                // 立即渲染一帧蓝绿流动（后续由 30fps 定时器持续驱动）
             } else {
                 teardownRemindView()
                 NSApp.applicationIconImage = dockIcon(.busy, variant: currentIconVariant())       // 动画关闭：静态蓝色
             }
-        } else {
+        case .starting:
+            if animationsEnabled {
+                animBeat()                                // 立即渲染第一帧（= 关闭态画面，所以不会跳）
+            } else {
+                teardownRemindView()
+                NSApp.applicationIconImage = dockIcon(.starting, variant: currentIconVariant())   // 动画关闭：静止的「滑块居中」
+            }
+        case .settling:
+            if animationsEnabled {
+                animBeat()                                // 归位动画
+            } else {
+                settleAt = nil                            // 动画关闭：不播归位，直接落到运行态
+                teardownRemindView()
+                NSApp.applicationIconImage = dockIcon(.running, variant: currentIconVariant())
+            }
+        case .failed:
+            if animationsEnabled {
+                animBeat()                                // 立即渲染失败入场首帧
+            } else {
+                teardownRemindView()
+                NSApp.applicationIconImage = dockIcon(.failed, variant: currentIconVariant())     // 动画关闭：静止的红 ✕
+            }
+        default:
             teardownRemindView()                     // 撤销动画视图，回到静态图标
             NSApp.applicationIconImage = dockIcon(s.live, variant: currentIconVariant())
         }
     }
 
     private func stateLabel(_ s: DisplayState) -> String {
-        switch s { case .off: return L("label.off"); case .running: return L("label.idle"); case .busy: return L("label.busy"); case .reminding: return L("label.reminding") }
+        switch s {
+        case .off: return L("label.off")
+        case .starting, .settling: return L("label.starting")
+        case .failed: return L("label.failed")
+        case .running: return L("label.idle")
+        case .busy: return L("label.busy")
+        case .reminding: return L("label.reminding")
+        }
     }
 
     /// 本地化取词（跟随系统语言；见 resources/*.lproj/Localizable.strings）

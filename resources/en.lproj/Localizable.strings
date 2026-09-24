@@ -1,11 +1,15 @@
 /* DeepSeek Harness Switch — English */
 "app.name" = "DeepSeek Harness Switch";
 "state.off" = "Stopped";
+"state.starting" = "Starting…";
 "state.running" = "Running · Idle";
+"state.failed" = "Start failed";
 "state.busy" = "Running · Working";
 "state.reminding" = "Running · Needs your attention";
 "label.off" = "Stopped";
+"label.starting" = "Starting";
 "label.idle" = "Idle";
+"label.failed" = "Start failed";
 "label.busy" = "Working";
 "label.reminding" = "Check the web UI";
 "menu.status" = "Status: %@";
@@ -14,11 +18,14 @@
 "menu.ack" = "Got it — stop reminding";
 "menu.stop" = "Stop DSH service…";
 "menu.start" = "Start DSH service";
+"menu.starting" = "Starting DSH service…";
+"menu.retry" = "Retry starting DSH service";
 "menu.animOff" = "Turn off animations";
 "menu.animOn" = "Turn on animations";
 "menu.notifyOff" = "Turn off system notifications";
 "menu.notifyOn" = "Turn on system notifications";
 "menu.logs" = "Open log";
+"menu.apiKeys" = "Edit API Keys…";
 "menu.version" = "Version %@";
 "menu.quit" = "Quit DeepSeek Harness Switch";
 "alert.stop.title" = "Stop DeepSeek Harness service?";
@@ -34,6 +41,12 @@
 "notify.question.body" = "An option is waiting for you in the dsh web UI.";
 "error.startFailed" = "dsh failed to start. See ~/Library/Logs/dsh-launcher.log";
 "error.notResponding" = "127.0.0.1:3080 did not respond within 120s. See ~/Library/Logs/dsh-web.log";
+"error.keysFile" = "Cannot write the credentials file: %@ (check directory permissions)";
+
+/* API keys (generic credentials entry) */
+"keys.title" = "API keys / environment";
+"keys.body" = "Opened %@\n\ndsh reads this file at startup and injects it into every plugin, so any API added later works the same way.\nRestart the DSH service for the change to take effect.";
+"keys.restart" = "Restart DSH service";
 
 /* Environment check */
 "env.menu" = "Environment Check…";
@@ -46,8 +59,10 @@
 "env.dsh.missing" = "DeepSeek Harness (dsh) not found. Install it first and run `dsh web` once. See the README for details.";
 "env.zstd.found" = "zstd available: %@ (task monitoring enabled)";
 "env.zstd.missing" = "zstd not found — task monitoring and alerts are disabled. Run `brew install zstd` and restart this app.";
-"env.apikey.found" = "DEEPSEEK_API_KEY found";
-"env.apikey.missing" = "DEEPSEEK_API_KEY not found — dsh will report \"no API key\". Export it in ~/.zshrc or save it on the dsh Models page.";
+"env.keys.file" = "Credentials file (loaded by dsh at startup): %@";
+"env.keys.found" = "Configured credentials: %@";
+"env.keys.none" = "No API credentials found — use \"Edit API Keys…\" to write %@ (one KEY=VALUE per line).";
+"env.apikey.missing" = "DEEPSEEK_API_KEY is not set — dsh reports \"no API key\". Use \"Edit API Keys…\" to write $DSH_HOME/.env.";
 "env.bridge.found" = "dock-bridge plugin active — the tokenized URL is read from its runtime file";
 "env.bridge.absent" = "dock-bridge plugin not installed (optional) — the tokenized URL falls back to the dsh startup log";
 "menu.sound" = "Sound alerts";

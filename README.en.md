@@ -19,17 +19,29 @@ The UI language **follows the system**, with built-in **English / 简体中文 /
 | Icon | State | Notes |
 |:--:|:--|:--|
 | ![off](docs/icon-off.png) | **Off** | Red · knob left |
+| ![starting](docs/icon-starting.gif) | **Starting** | White knob shuttles left ↔ right (capsule powers green) |
+| ![start failed](docs/icon-failed.png) | **Start failed** | Off state · red ✕ on the knob |
 | ![running](docs/icon-running.png) | **Running · Idle** | Green · knob right |
 | ![busy](docs/icon-busy.gif) | **Task running** | Multi-color aurora flow |
 | ![done](docs/icon-remind-complete.gif) | **Task done** | Inward edge glow + white streamer (green) |
 | ![confirm / single choice](docs/icon-remind-question.gif) | **Needs confirmation / single choice** | Question-mark morph |
 | ![multi](docs/icon-remind-multi.gif) | **Waiting · multi-select** | Check-mark fade-overlap |
 
-> The six images sit in a **single column** rather than one row on purpose: GitHub's `max-width: 100%`
+> The eight images sit in a **single column** rather than one row on purpose: GitHub's `max-width: 100%`
 > shrinks every image to the width of its table cell. In a row, each column has a different width
 > (measured 121–235px), so each image ended up rendered at a different size. Sharing one column means
-> they all share the same width — so the six are always displayed at exactly the same size, at any
+> they all share the same width — so the eight are always displayed at exactly the same size, at any
 > viewport width.
+
+> Clicking the icon **immediately** switches to the **Starting** animation: green sweeps in from the
+> left and fills the red off-state capsule (0.3 s "power on", with a soft leading edge); the capsule then
+> stays green while the **white knob shuttles left ↔ right across the whole capsule** (cosine, zero
+> velocity at both ends; one round trip takes 1.1 s) — "the switch is powered, still waiting for the
+> service". The moment the service is ready the knob **glides smoothly to the right end and stops**
+> (0.25 s settle), a frame that is **pixel-identical** to the **Running · Idle** icon, so the handover is
+> seamless. If startup fails (dsh not found / cannot spawn / no response within 120 s) the green
+> **drains away**, the knob slides back to the left, and a **red ✕** pops onto the round knob in the
+> middle (0.55 s intro, then still), together with a dialog explaining why.
 
 > Four of the images in the table above are **animations**. When dsh stops for an option prompt (`ask_user_question`) or plan approval (`exit_plan_mode`), **DeepSeek and HARNESS move apart, the switch's white knob grows into a large rounded square, and a blue symbol appears inside it**. It then keeps looping **until you actually make your choice in the dsh page and dsh continues**, at which point a **reverse animation** folds it back into the switch:
 > - **Needs confirmation (approval) / single choice / plain question**: a blue **question mark**, looping a soft brightness breath. These cases **share one and the same animation** (hence the single column above); inside the app they differ only in **alert sound and notification text**.
@@ -46,7 +58,7 @@ The icon uses a **squircle (continuous-corner)** shape and swaps its plate color
 This app is a **companion toggle for DeepSeek Harness (`dsh`)** — not a standalone product:
 
 1. **DeepSeek Harness must be installed**, the `dsh` command must work, and you should have run `dsh web` at least once. Otherwise clicking the icon reports "dsh not found".
-2. **`DEEPSEEK_API_KEY`** must be available — `export DEEPSEEK_API_KEY=...` in `~/.zshrc`, or save it on the dsh Models page. Otherwise dsh reports `no API key`.
+2. **API keys (including `DEEPSEEK_API_KEY`)** must be available — use the right-click menu **"Edit API Keys…"** to write `$DSH_HOME/.env` (default `~/.dsh/.env`; dsh reads it at startup and injects it into every plugin), or `export` it in `~/.zshrc`, or save it on the dsh Models page. Otherwise dsh reports `no API key`, and plugins that need a third-party API (e.g. the Whale Galgame level-up CG needs `DASHSCOPE_API_KEY`) report a missing key.
 3. **(Optional) `brew install zstd`** — required for task-state monitoring and alerts. Without it the app can still start/stop the service, but the icon will not reflect task state.
 4. **System**: macOS 14+, Apple Silicon or Intel (universal binary).
 5. **First launch**: this app is not signed with a paid Developer ID and is not notarized. If macOS says the developer cannot be verified (or "is damaged"), **right-click the app → Open**, or run:
@@ -77,10 +89,13 @@ DeepSeek Harness 开关.app   (current version v0.15.0)
 
 ## Features
 
+- **Instant feedback on click**: the icon switches to the **Starting** animation (power-on + knob shuttling left ↔ right) right away, so the seconds before the page appears are no longer a blank stare; on success the knob settles and hands over seamlessly to `Running · Idle`, on failure the green drains away and a **red ✕** is left on the knob — "still starting" and "failed to start" are never confused.
 - **Left-click the Dock icon = return to the page**: focuses an already-open `127.0.0.1:3080` tab; opens a new tab if the page was closed; starts the service if it is not running. It opens the **full tokenized URL**, so you never land on a 401 page: the runtime file written by the dock-bridge plugin is preferred, with the dsh startup log as the fallback when that plugin is not installed.
 - **Right-click the Dock icon = action menu**: open page / got it (stop reminding) / **Stop service… (with confirmation)** / **animation toggle** / open log / quit.
-- **Four icon states**:
+- **Six icon states**:
   - `Off` (red, knob left) — service stopped
+  - `Starting` — the power-on + knob-shuttle animation played the instant you click (see above)
+  - `Start failed` — the off state with a **red ✕** on the knob (the green drains away, the knob slides back left and the ✕ pops in, then it stays still); the menu becomes "Retry starting DSH service"
   - `Running · Idle` (green, knob right)
   - `Task running` — multi-color aurora flow (blue → cyan → green → violet long gradient drifting slowly + a soft light sweep, 60 fps)
   - `Needs attention` — **you are needed** (confirmation or a pending choice) = the morph animation (question mark / check mark, see below); **task done** = green inward edge glow + a 2 px white streamer along the edge
@@ -88,7 +103,8 @@ DeepSeek Harness 开关.app   (current version v0.15.0)
 - **Configurable alert sounds** (right-click menu → “Sound Settings…” opens a **dedicated window**): one aligned row per alert — confirmation / choice / task done / service started / service stopped — each with a sound popup (system sounds + `~/Library/Sounds`) and a preview button; the three reminders also get a **repeat count**: `1` / `2` / `3` / `5`, or **“until the pointer reaches the Dock”** (stops the moment the pointer enters the Dock or menu bar area — no Accessibility permission needed). The bottom row holds a “preview when selecting a sound” switch and “Restore Defaults”; settings persist.
 - **About**: the right-click menu's “About …” shows the app name, version (with build number), the GitHub URL and the sponsor link, each openable from a button in the dialog.
 - **Animation master switch**: turn all icon animations off/on from the right-click menu (static icons remain; bouncing and notifications still work). Cost is negligible — it only redraws a 128 px icon while animating.
-- **Automatic API-key injection**: GUI-launched processes do not read `.zshrc`, so the app parses `DEEPSEEK_API_KEY` from `~/.zshenv` / `.zprofile` / `.zshrc` / `.bash_profile` / `.bashrc` / `.profile` and injects it into the `dsh` child process (read-only, never written to disk, never sent anywhere).
+- **Generic API-keys entry (right-click menu → "Edit API Keys…")**: opens dsh's own user-level environment file `$DSH_HOME/.env` (default `~/.dsh/.env`; if missing it is created as a commented template with mode `0600`). dsh reads this file at startup and injects it into **every** plugin and tool process, so any API added later just needs one `KEY=VALUE` line — this app never needs a new release and does not know any specific key name. Restart the DSH service to apply (the dialog offers a "Restart DSH service" button).
+- **Shell-config fallback**: GUI-launched processes do not read `.zshrc`, so the app still parses `*_API_KEY` / `*_TOKEN` / `*_SECRET` / `*_PASSWORD` / `*_CREDENTIAL` variables (including `*_ACCESS_KEY_ID`) from `~/.zshenv` / `.zprofile` / `.zshrc` / `.bash_profile` / `.bashrc` / `.profile`, skipping `*_PATH` / `*_FILE` / `*_DIR` / `*_URL` names that look like keys but are paths. Variables already present in the process environment win; `$DSH_HOME/.env` is read by dsh itself and is deliberately **not** injected again, so two parsers can never disagree about the same value. The whole path is read-only, logs names only, and never records or transmits a value.
 - **Task-state monitoring** by reading `~/.dsh/sessions/*/session.jsonl.zstd`:
   - `approval/request`, `approval/asked` → **needs confirmation**
   - `turn/end` (a normal conversation turn ended) → **task done**; if the session has an active goal, turn end is ignored and only `goal/change` (`operation == "complete"` / `goal.phase == "complete"`) counts as done
@@ -178,7 +194,7 @@ cd dsh-dock-launcher
 ```
 
 - Icons & animation: `src/Icons.swift`; app icon: `src/draw_icon.swift`.
-- Service / monitoring / alerts: `src/ServiceManager.swift`, `src/TaskMonitor.swift`, `src/main.swift`.
+- Service / monitoring / alerts: `src/ServiceManager.swift` (start/stop, generic API-credential pipeline: `$DSH_HOME/.env` + shell fallback), `src/TaskMonitor.swift`, `src/main.swift`.
 - UI strings: `resources/*.lproj/Localizable.strings` (en / zh-Hans / ja / ko).
 
 ## Layout
